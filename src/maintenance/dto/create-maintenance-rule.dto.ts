@@ -1,24 +1,21 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateMaintenanceRuleDto {
-  @ApiProperty({ description: 'ID of the Service (e.g., Oil Change)' })
-  @IsUUID()
   @IsNotEmpty()
-  serviceId!: string;
+  @IsUUID()
+  serviceId!: string; // e.g. "Oil Change" ID
 
-  @ApiPropertyOptional({
-    example: 10000,
-    description: 'Interval in Kilometers',
-  })
+  @IsNotEmpty()
+  @IsUUID()
+  modelId!: string;   // e.g. "Toyota Corolla" ID (This is the new DNA link)
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  intervalKm?: number; // e.g. 10000
+
+  @IsOptional()
   @IsInt()
   @Min(1)
-  @IsOptional()
-  intervalKm?: number;
-
-  @ApiPropertyOptional({ example: 6, description: 'Interval in Months' })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  intervalMonths?: number;
+  intervalMonths?: number; // e.g. 12
 }

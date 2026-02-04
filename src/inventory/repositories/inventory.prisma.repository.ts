@@ -11,7 +11,18 @@ export class InventoryPrismaRepository implements IInventoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: CreatePartDto): Promise<Part> {
-    return this.prisma.part.create({ data });
+    // Extract model IDs to handle the relation separately
+    const { compatibleModelIds, ...partData } = data;
+
+    return this.prisma.part.create({
+      data: {
+        ...partData,
+        // THE FIX: Explicitly connect relations
+        compatibleModels: {
+          connect: compatibleModelIds.map((id) => ({ id })),
+        },
+      },
+    });
   }
 
   async findAll(pagination: PaginationDto, search?: string): Promise<Part[]> {

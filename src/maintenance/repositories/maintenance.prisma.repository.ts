@@ -1,65 +1,43 @@
 import { Injectable } from '@nestjs/common';
-import { IMaintenanceRepository } from '../interfaces/maintenance.repository.interface';
-import type { MaintenanceRuleWithService } from '../interfaces/maintenance.repository.interface';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service'; // Adjust path
 import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
-import { RecordMaintenanceDto } from '../dto/record-maintenance.dto';
-import { MaintenanceRecord, MaintenanceRule } from '@prisma/client';
 
 @Injectable()
-export class MaintenancePrismaRepository implements IMaintenanceRepository {
+export class MaintenanceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  // --- Rules ---
-  async createRule(data: CreateMaintenanceRuleDto): Promise<MaintenanceRule> {
-    return this.prisma.maintenanceRule.create({ data });
-  }
-
-  async findAllRules(): Promise<MaintenanceRuleWithService[]> {
-    return this.prisma.maintenanceRule.findMany({
-      include: { service: true },
-    });
-  }
-
-  async findRuleByServiceId(
-    serviceId: string,
-  ): Promise<MaintenanceRule | null> {
-    return this.prisma.maintenanceRule.findUnique({
-      where: { serviceId },
-    });
-  }
-
-  // --- Records ---
-  async createRecord(
-    carId: string,
-    data: RecordMaintenanceDto,
-  ): Promise<MaintenanceRecord> {
-    return this.prisma.maintenanceRecord.create({
+  async createRule(data: CreateMaintenanceRuleDto) {
+    return this.prisma.maintenanceRule.create({
       data: {
-        carId,
         serviceId: data.serviceId,
-        mileageKm: data.mileageKm,
-        notes: data.notes ?? null,
-        performedAt: data.performedAt ? new Date(data.performedAt) : new Date(),
+        modelId: data.modelId, // Crucial: Link to Car Model
+        intervalKm: data.intervalKm?? null,
+        intervalMonths: data.intervalMonths?? null,
       },
     });
   }
 
-  async findRecordsByCarId(carId: string): Promise<MaintenanceRecord[]> {
-    return this.prisma.maintenanceRecord.findMany({
-      where: { carId },
+  // Find all rules for a specific car model (The "DNA" fetch)
+  async findRulesByModel(modelId: string) {
+    return this.prisma.maintenanceRule.findMany({
+      where: { modelId },
       include: { service: true },
-      orderBy: { performedAt: 'desc' },
     });
   }
 
-  async findLastRecord(
-    carId: string,
-    serviceId: string,
-  ): Promise<MaintenanceRecord | null> {
-    return this.prisma.maintenanceRecord.findFirst({
-      where: { carId, serviceId },
-      orderBy: { performedAt: 'desc' },
+  // Find a specific rule (e.g., Oil Rule for Corolla)
+  async findOneRule(serviceId: string, modelId: string) {
+    return this.prisma.maintenanceRule.findUnique({
+      where: {
+        serviceId_modelId: { // PRISMA SYNTAX FOR COMPOSITE KEY
+          serviceId,
+          modelId,
+        },
+      },
     });
+  }
+
+  async removeRule(id: string) {
+    return this.prisma.maintenanceRule.delete({ where: { id } });
   }
 }

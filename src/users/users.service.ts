@@ -1,59 +1,99 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+// src/users/users.service.ts
+import { Injectable, ConflictException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { USERS_REPOSITORY } from './interfaces/users.repository.interface';
-import type { IUsersRepository } from './interfaces/users.repository.interface';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserRole } from '@prisma/client';
+import { SignupDto } from '../auth/dto/auth.dto';
+import { UpdateUserDto } from './dto/update-user.dto'; // Make sure this is imported
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @Inject(USERS_REPOSITORY)
-    private readonly usersRepository: IUsersRepository,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const existingUser = await this.usersRepository.findByEmail(
-      createUserDto.email,
-    );
-    if (existingUser) {
-      throw new ConflictException('Email already in use');
+  async create(dto: SignupDto): Promise<User> {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (existingUser) throw new ConflictException('Email already in use');
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    if (dto.organizationName) {
+      return this.createCorporateUser(dto, hashedPassword);
+    } else {
+      return this.createNormalUser(dto, hashedPassword);
     }
+  }
 
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-    return await this.usersRepository.create({
-      ...createUserDto,
-      password: hashedPassword,
+  private async createNormalUser(dto: SignupDto, hash: string) {
+    return this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hash,
+        name: dto.name,
+        // FIX: Convert undefined to null
+        phone: dto.phone ?? null, 
+        role: UserRole.USER,
+      },
     });
   }
 
+  private async createCorporateUser(dto: SignupDto, hash: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name: dto.organizationName!,
+          // FIX: Convert undefined to null
+          taxId: dto.taxId ?? null, 
+        },
+      });
+
+      return tx.user.create({
+        data: {
+          email: dto.email,
+          password: hash,
+          name: dto.name,
+          // FIX: Convert undefined to null
+          phone: dto.phone ?? null,
+          role: UserRole.ACCOUNT_MANAGER,
+          organizationId: org.id,
+        },
+      });
+    });
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: { organization: true },
+    });
+  }
+
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
   async findAll(role?: UserRole) {
-    return this.usersRepository.findAll(role);
+    if (role) {
+      return this.prisma.user.findMany({ where: { role } });
+    }
+    return this.prisma.user.findMany();
   }
 
   async findOne(id: string) {
-    const user = await this.usersRepository.findById(id);
-    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
-    return user;
+    return this.findById(id);
   }
 
-  async findByEmail(email: string) {
-    return this.usersRepository.findByEmail(email);
-  }
-
-  async update(id: string, updateUserDto: UpdateUserDto) {
-    await this.findOne(id);
-    return this.usersRepository.update(id, updateUserDto);
+async update(id: string, dto: UpdateUserDto) {
+    return this.prisma.user.update({
+      where: { id },
+      data: dto,
+    });
   }
 
   async remove(id: string) {
-    await this.findOne(id);
-    return this.usersRepository.delete(id);
+    return this.prisma.user.delete({
+      where: { id },
+    });
   }
 }

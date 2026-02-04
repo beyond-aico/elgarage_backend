@@ -16,7 +16,6 @@ export class PrismaService
     const adapter = new PrismaPg(pool);
 
     super({
-      adapter,
       log: ['warn', 'error'],
     });
   }

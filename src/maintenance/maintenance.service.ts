@@ -1,114 +1,69 @@
-import { Inject, Injectable, ConflictException } from '@nestjs/common';
-import { MAINTENANCE_REPOSITORY } from './interfaces/maintenance.repository.interface';
-import type { IMaintenanceRepository } from './interfaces/maintenance.repository.interface';
-import { CarsService } from '../cars/cars.service';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { MaintenanceRepository } from './repositories/maintenance.prisma.repository';
 import { CreateMaintenanceRuleDto } from './dto/create-maintenance-rule.dto';
-import { RecordMaintenanceDto } from './dto/record-maintenance.dto';
-import dayjs from 'dayjs';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MaintenanceService {
   constructor(
-    @Inject(MAINTENANCE_REPOSITORY)
-    private readonly maintenanceRepository: IMaintenanceRepository,
-    private readonly carsService: CarsService,
+    private readonly repository: MaintenanceRepository,
+    private readonly prisma: PrismaService, // Direct access needed for Car fetch
   ) {}
 
-  // --- Admin: Rules Management ---
+  // --- ADMIN: Manage DNA ---
   async createRule(dto: CreateMaintenanceRuleDto) {
-    const existing = await this.maintenanceRepository.findRuleByServiceId(dto.serviceId);
+    // Check if rule already exists for this car/service combo to avoid crash
+    const existing = await this.repository.findOneRule(dto.serviceId, dto.modelId);
     if (existing) {
-      throw new ConflictException(
-        'A maintenance rule for this service already exists',
-      );
+      throw new Error('Rule already exists for this car model and service.');
     }
-    return this.maintenanceRepository.createRule(dto);
+    return this.repository.createRule(dto);
   }
 
-  async getAllRules() {
-    return this.maintenanceRepository.findAllRules();
+  async getRulesForModel(modelId: string) {
+    return this.repository.findRulesByModel(modelId);
   }
 
-  // --- User: Records & Calculation ---
-  async recordMaintenance(
-    userId: string,
-    carId: string,
-    dto: RecordMaintenanceDto,
-  ) {
-    // 1. Verify Car Ownership
-    const car = await this.carsService.findOne(carId, userId);
+  // --- CORE FEATURE: Calculate Car Health ---
+  async getCarMaintenanceStatus(carId: string) {
+    // 1. Get Car + Current Mileage + Model ID
+    const car = await this.prisma.car.findUnique({
+      where: { id: carId },
+      include: { model: true },
+    });
+    if (!car) throw new NotFoundException('Car not found');
 
-    // 2. Update Car Mileage if the new record is higher
-    if (dto.mileageKm > car.mileageKm) {
-      // We'd ideally call carsService.updateMileage(carId, dto.mileageKm)
-      // allowing auto-update of car state
-    }
+    // 2. Get "DNA" (Rules) for this Model
+    const rules = await this.repository.findRulesByModel(car.modelId);
 
-    return this.maintenanceRepository.createRecord(carId, dto);
-  }
+    // 3. Compute Status for each rule
+    const report = rules.map((rule) => {
+      if (!rule.intervalKm) return null; // Skip non-mileage rules for now
 
-  async getHistory(userId: string, carId: string) {
-    await this.carsService.findOne(carId, userId);
-    return this.maintenanceRepository.findRecordsByCarId(carId);
-  }
+      const interval = rule.intervalKm;
+      const mileage = car.mileageKm;
 
-  async checkDueServices(userId: string, carId: string) {
-    const car = await this.carsService.findOne(carId, userId);
-    const rules = await this.maintenanceRepository.findAllRules();
-    const dueServices = [];
+      // Logic: If I am at 25,000km and interval is 10,000km...
+      // Last service should have been at 20,000. Next is 30,000.
+      const nextDueKm = Math.ceil((mileage + 1) / interval) * interval;
+      const remainingKm = nextDueKm - mileage;
 
-    for (const rule of rules) {
-      const lastRecord = await this.maintenanceRepository.findLastRecord(
-        carId,
-        rule.serviceId,
-      );
+      // Alert Logic
+      let status = 'OK';
+      if (remainingKm < 0) status = 'OVERDUE'; // Should not happen with this math, but safe to have
+      else if (remainingKm < 1000) status = 'DUE_SOON'; // Warning threshold
 
-      let isDue = false;
-      let reason = '';
+      return {
+        serviceName: rule.service.name,
+        category: rule.service.category,
+        interval: interval,
+        lastDueAt: nextDueKm - interval,
+        nextDueAt: nextDueKm,
+        remainingKm: remainingKm,
+        status: status,
+      };
+    });
 
-      if (!lastRecord) {
-        isDue = true;
-        reason = 'Never performed';
-      } else {
-        // Check Mileage
-        if (rule.intervalKm) {
-          const kmSince = car.mileageKm - lastRecord.mileageKm;
-          if (kmSince >= rule.intervalKm) {
-            isDue = true;
-            reason = `Overdue by ${kmSince - rule.intervalKm} km`;
-          }
-        }
-
-        // Check Time (if not already due by mileage)
-        if (!isDue && rule.intervalMonths) {
-          const monthsSince = dayjs().diff(
-            dayjs(lastRecord.performedAt),
-            'month',
-          );
-          if (monthsSince >= rule.intervalMonths) {
-            isDue = true;
-            reason = `Overdue by time (${monthsSince} months)`;
-          }
-        }
-      }
-
-      if (isDue) {
-        dueServices.push({
-          service: rule.service,
-          reason,
-          nextDueKm: lastRecord
-            ? lastRecord.mileageKm + (rule.intervalKm || 0)
-            : car.mileageKm,
-          nextDueDate:
-            lastRecord && rule.intervalMonths
-              ? dayjs(lastRecord.performedAt)
-                  .add(rule.intervalMonths, 'month')
-                  .toDate()
-              : new Date(),
-        });
-      }
-    }
-
-    return dueServices;
+    return report.filter((r) => r !== null);
   }
 }

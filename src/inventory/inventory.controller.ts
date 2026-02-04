@@ -34,8 +34,8 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Add a new part to inventory (Admin only)' })
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER) // FIX: Allow Managers to add parts
+  @ApiOperation({ summary: 'Add a new part to inventory' })
   @ApiResponse({ status: 201, description: 'Part created successfully' })
   async create(@Body() createPartDto: CreatePartDto) {
     const part = await this.inventoryService.create(createPartDto);
@@ -43,7 +43,8 @@ export class InventoryController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.USER) // Both can view
+  // FIX: Add ACCOUNT_MANAGER to the allowed list
+  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER) 
   @ApiOperation({ summary: 'List all parts with pagination and search' })
   @ApiQuery({ name: 'search', required: false, description: 'Search by name or SKU' })
   async findAll(
@@ -55,7 +56,7 @@ export class InventoryController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER) // FIX
   @ApiOperation({ summary: 'Get part details' })
   async findOne(@Param('id') id: string) {
     const part = await this.inventoryService.findOne(id);
@@ -63,8 +64,8 @@ export class InventoryController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update part details (Admin only)' })
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER) // FIX
+  @ApiOperation({ summary: 'Update part details' })
   async update(
     @Param('id') id: string,
     @Body() updatePartDto: UpdatePartDto,

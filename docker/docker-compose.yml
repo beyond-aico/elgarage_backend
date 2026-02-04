@@ -1,16 +1,27 @@
+version: '3.8'
+
 services:
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: car_service_api
-    # This loads the fixed .env from the root
-    env_file:
-      - ../.env
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/car_service?schema=public
+    restart: always
     ports:
       - "3000:3000"
+    environment:
+      # API connects to 'postgres' (container name), not 'localhost'
+      DATABASE_URL: postgresql://postgres:password123@postgres:5432/car_service?schema=public
+      
+      # API connects to 'redis' (container name), not 'localhost'
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # Secrets matching your code fallbacks
+      JWT_ACCESS_SECRET: super_secret_fallback
+      JWT_SECRET: super_secret_fallback
+      JWT_REFRESH_SECRET: super_refresh_secret_fallback
+      
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,23 +31,25 @@ services:
   postgres:
     image: postgres:15
     container_name: car_service_postgres
+    restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: password123 
       POSTGRES_DB: car_service
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 15
+      retries: 5
 
   redis:
     image: redis:7
     container_name: car_service_redis
+    restart: always
     ports:
       - "6379:6379"
 

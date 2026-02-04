@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   Req,
+  NotFoundException, // <--- Added this import
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -57,6 +58,8 @@ export class UsersController {
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@Req() req: Request & { user: AuthUser }) {
     const user = await this.usersService.findOne(req.user.userId);
+    // FIX 1: Handle null case
+    if (!user) throw new NotFoundException('Profile not found');
     return new UserResponseDto(user);
   }
 
@@ -65,6 +68,8 @@ export class UsersController {
   @ApiOperation({ summary: 'Get any user details (Admin)' })
   async findOne(@Param('id') id: string) {
     const user = await this.usersService.findOne(id);
+    // FIX 2: Handle null case
+    if (!user) throw new NotFoundException('User not found');
     return new UserResponseDto(user);
   }
 

@@ -22,7 +22,7 @@ export class CreateServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ enum: ServiceCategory, example: ServiceCategory.OIL })
+  @ApiProperty({ enum: ServiceCategory, example: ServiceCategory.FLUIDS })
   @IsEnum(ServiceCategory)
   category!: ServiceCategory;
 
