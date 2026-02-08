@@ -27,4 +27,11 @@ export class BrandsService {
       include: { models: true },
     });
   }
+  listModels(brandId: string) {
+    return this.prisma.carModel.findMany({
+      where: {
+        brandId: brandId, // بيفلتر الموديلات حسب الماركة المختارة
+      },
+    });
+  }
 }

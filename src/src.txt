@@ -1,0 +1,4261 @@
+--- BACKEND PROJECT FULL DUMP ---
+Generated on: 2026-02-07
+============================================================
+
+
+############################################################
+PATH: .\app.controller.spec.ts
+############################################################
+
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+describe('AppController', () => {
+  let appController: AppController;
+
+  beforeEach(async () => {
+    const app: TestingModule = await Test.createTestingModule({
+      controllers: [AppController],
+      providers: [AppService],
+    }).compile();
+
+    appController = app.get<AppController>(AppController);
+  });
+
+  describe('root', () => {
+    it('should return "Hello World!"', () => {
+      expect(appController.getHello()).toBe('Hello World!');
+    });
+  });
+});
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\app.controller.ts
+############################################################
+
+import { Controller, Get } from '@nestjs/common';
+import { AppService } from './app.service';
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\app.module.ts
+############################################################
+
+import { Module, ModuleMetadata } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from 'nestjs-pino';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { CarsModule } from './cars/cars.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { ServicesModule } from './services/services.module';
+import { OrdersModule } from './orders/orders.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { QueueModule } from './common/queues/queue.module';
+import { AdminModule } from './admin/admin.module';
+
+const moduleMetadata: ModuleMetadata = {
+  imports: [
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    CarsModule,
+    MaintenanceModule,
+    InventoryModule,
+    ServicesModule,
+    OrdersModule,
+    ScheduleModule.forRoot(),
+    QueueModule,
+    AdminModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+
+    LoggerModule.forRoot({
+      pinoHttp:
+        process.env.NODE_ENV === 'production'
+          ? {
+              level: 'info',
+            }
+          : {
+              level: 'debug',
+              transport: {
+                target: 'pino-pretty',
+                options: {
+                  colorize: true,
+                  translateTime: 'SYS:standard',
+                  singleLine: true,
+                },
+              },
+            },
+    }),
+  ],
+};
+
+@Module(moduleMetadata)
+export class AppModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\app.service.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Hello World!';
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\collect_code.py
+############################################################
+
+import os
+
+# ================= إعدادات السكريبت للباك إند (NestJS, Node, Docker) =================
+
+output_filename = "backend_full_code_dump.txt"
+
+# 1. الامتدادات البرمجية الشاملة
+included_extensions = [
+    # Logic & Languages
+    '.ts', '.js', '.py', '.php', '.go', '.rs', '.java',
+    
+    # Config & Environment
+    '.json', '.yaml', '.yml', '.env', '.env.example', '.toml',
+    
+    # Database & ORM
+    '.sql', '.prisma', '.db', '.entity.ts', '.dto.ts', '.schema.ts',
+    
+    # Infrastructure & DevOps
+    '.dockerignore', '.gitignore',
+    
+    # Documentation
+    '.md', '.txt'
+]
+
+# 2. ملفات محددة بالاسم (Files without unique extensions)
+included_filenames = {
+    'Dockerfile', 'docker-compose.yml', 'Caddyfile', 'Makefile', 
+    'Procfile', 'nest-cli.json', 'tsconfig.json', 'package.json'
+}
+
+# 3. مجلدات يجب تجاهلها (عشان الكود ميطلعش ملايين السطور)
+ignored_dirs = {
+    'node_modules', 'dist', 'build', 'venv', '.git', '.idea', 
+    '__pycache__', 'coverage', 'tmp', 'logs', 'uploads', 
+    'migrations', '.next', 'out', 'bin', 'obj'
+}
+
+# ================= بداية التنفيذ =================
+
+def collect_backend_files():
+    print(f"🚀 Starting to aggregate Backend Code...")
+    count = 0
+    
+    with open(output_filename, 'w', encoding='utf-8') as outfile:
+        outfile.write(f"--- BACKEND PROJECT FULL DUMP ---\n")
+        outfile.write(f"Generated on: 2026-02-07\n")
+        outfile.write("="*60 + "\n\n")
+
+        for root, dirs, files in os.walk("."):
+            # (1) تصفية المجلدات المستبعدة
+            dirs[:] = [d for d in dirs if d not in ignored_dirs and not d.startswith('.')]
+            
+            for file in files:
+                # (2) تجاهل ملفات القفل (Lock files) لأنها طويلة جداً وغير مفيدة
+                if 'lock' in file.lower():
+                    continue
+                
+                # (3) التحقق من الامتداد أو اسم الملف
+                is_target = any(file.endswith(ext) for ext in included_extensions) or file in included_filenames
+                
+                if is_target:
+                    file_path = os.path.join(root, file)
+                    
+                    # تخطي ملف المخرج نفسه
+                    if file == output_filename:
+                        continue
+
+                    print(f"📦 Adding: {file_path}")
+
+                    outfile.write(f"\n{'#'*60}\n")
+                    outfile.write(f"PATH: {file_path}\n")
+                    outfile.write(f"{'#'*60}\n\n")
+
+                    try:
+                        # استخدام errors='ignore' لتخطي الرموز الغريبة في ملفات الـ binary إن وجدت
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as infile:
+                            outfile.write(infile.read())
+                            count += 1
+                    except Exception as e:
+                        outfile.write(f"\n[⚠️ Skipped due to error: {e}]\n")
+                    
+                    outfile.write(f"\n\n{'*'*20} END OF FILE {'*'*20}\n")
+
+    print(f"\n✅ Success! {count} files were collected into: {output_filename}")
+
+if __name__ == "__main__":
+    collect_backend_files()
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\main.ts
+############################################################
+
+import { NestFactory, HttpAdapterHost } from '@nestjs/core'; // Import HttpAdapterHost
+import { AppModule } from './app.module';
+import helmet from 'helmet';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino'; // Assuming you kept pino, otherwise use generic Logger
+import { ConfigService } from '@nestjs/config';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const configService = app.get(ConfigService);
+  // If you are using standard NestJS logger, use: const logger = new Logger('Bootstrap');
+  const logger = app.get(Logger);
+
+  app.use(helmet());
+  app.enableCors({
+    origin: configService.get<string>('CORS_ORIGIN', '*'),
+    credentials: true,
+  });
+
+  app.setGlobalPrefix('api');
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
+
+  // Global Validation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
+  // Global Filter & Interceptor
+  const httpAdapter = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+  app.useGlobalInterceptors(new TransformInterceptor());
+
+  app.useLogger(logger);
+
+  const config = new DocumentBuilder()
+    .setTitle('Car Service API')
+    .setDescription('Enterprise Backend for Car Service Management')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
+
+  app.enableShutdownHooks();
+
+  const port = configService.get<number>('PORT', 3000);
+  await app.listen(port,'0.0.0.0');
+  logger.log(`Application is running on: ${await app.getUrl()}/api/v1`);
+}
+
+bootstrap().catch((err) => {
+  console.error('Error during bootstrap:', err);
+});
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\admin.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { BrandsModule } from './brands/brands.module';
+import { ReportsModule } from './reports/reports.module';
+
+@Module({
+  imports: [BrandsModule, ReportsModule],
+})
+export class AdminModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\brands\brands.controller.ts
+############################################################
+
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { BrandsService } from './brands.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { CreateBrandDto } from './dto/create-brand.dto';
+import { CreateModelDto } from './dto/create-model.dto';
+
+@Controller('admin/brands')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
+export class BrandsController {
+  constructor(private readonly brandsService: BrandsService) {}
+
+  @Post()
+  createBrand(@Body() dto: CreateBrandDto) {
+    return this.brandsService.createBrand(dto);
+  }
+
+  @Post('models')
+  createModel(@Body() dto: CreateModelDto) {
+    return this.brandsService.createModel(dto);
+  }
+
+  @Get()
+  list() {
+    return this.brandsService.listBrands();
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\brands\brands.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { BrandsService } from './brands.service';
+import { BrandsController } from './brands.controller';
+
+@Module({
+  providers: [BrandsService],
+  controllers: [BrandsController],
+})
+export class BrandsModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\brands\brands.service.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateBrandDto } from './dto/create-brand.dto';
+import { CreateModelDto } from './dto/create-model.dto';
+
+@Injectable()
+export class BrandsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  createBrand(dto: CreateBrandDto) {
+    return this.prisma.carBrand.create({
+      data: { name: dto.name },
+    });
+  }
+
+  createModel(dto: CreateModelDto) {
+    return this.prisma.carModel.create({
+      data: {
+        name: dto.name,
+        brandId: dto.brandId,
+      },
+    });
+  }
+
+  listBrands() {
+    return this.prisma.carBrand.findMany({
+      include: { models: true },
+    });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\brands\dto\create-brand.dto.ts
+############################################################
+
+import { IsString } from 'class-validator';
+
+export class CreateBrandDto {
+  @IsString()
+  name!: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\brands\dto\create-model.dto.ts
+############################################################
+
+import { IsString } from 'class-validator';
+
+export class CreateModelDto {
+  @IsString()
+  brandId!: string;
+
+  @IsString()
+  name!: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\admin-reports.controller.ts
+############################################################
+
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AdminReportsService } from './admin-reports.service';
+import { GetReportDto } from './dto/get-report.dto';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
+
+@ApiTags('Admin Reports')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN) // Strict Admin Access
+@Controller('admin/reports')
+export class AdminReportsController {
+  constructor(private readonly reportsService: AdminReportsService) {}
+
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Get high-level dashboard statistics' })
+  async getDashboard(@Query() dto: GetReportDto) {
+    return this.reportsService.getDashboardStats(dto);
+  }
+
+  @Get('inventory-alerts')
+  @ApiOperation({ summary: 'Get list of parts with low stock' })
+  async getInventoryReport() {
+    return this.reportsService.getInventoryReport();
+  }
+
+  @Get('popular-services')
+  @ApiOperation({ summary: 'Get top 5 most ordered services' })
+  async getPopularServices() {
+    return this.reportsService.getPopularServices();
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\admin-reports.service.ts
+############################################################
+
+import { Inject, Injectable } from '@nestjs/common';
+import { REPORTS_REPOSITORY } from './interfaces/reports.repository.interface';
+import type { IReportsRepository } from './interfaces/reports.repository.interface';
+import { GetReportDto } from './dto/get-report.dto';
+import { DashboardStatsDto } from './dto/dashboard-stats.dto';
+
+@Injectable()
+export class AdminReportsService {
+  constructor(
+    @Inject(REPORTS_REPOSITORY)
+    private readonly reportsRepository: IReportsRepository,
+  ) {}
+
+  async getDashboardStats(dto: GetReportDto) {
+    const start = dto.startDate ? new Date(dto.startDate) : undefined;
+    const end = dto.endDate ? new Date(dto.endDate) : undefined;
+
+    const metrics = await this.reportsRepository.getDashboardMetrics(
+      start,
+      end,
+    );
+
+    return new DashboardStatsDto({
+      totalUsers: metrics.users,
+      totalCars: metrics.cars,
+      totalOrders: metrics.orders,
+      totalRevenue: metrics.revenue,
+      lowStockCount: metrics.lowStockCount,
+    });
+  }
+
+  async getInventoryReport() {
+    return this.reportsRepository.getLowStockParts();
+  }
+
+  async getPopularServices() {
+    return this.reportsRepository.getTopSellingServices();
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\reports.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { AdminReportsService } from './admin-reports.service';
+import { AdminReportsController } from './admin-reports.controller';
+import { PrismaModule } from '../../prisma/prisma.module';
+import { REPORTS_REPOSITORY } from './interfaces/reports.repository.interface';
+import { ReportsPrismaRepository } from './repositories/reports.prisma.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [AdminReportsController],
+  providers: [
+    AdminReportsService,
+    {
+      provide: REPORTS_REPOSITORY,
+      useClass: ReportsPrismaRepository,
+    },
+  ],
+})
+export class ReportsModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\dto\dashboard-stats.dto.ts
+############################################################
+
+import { Expose } from 'class-transformer';
+
+export class DashboardStatsDto {
+  @Expose()
+  totalUsers!: number;
+
+  @Expose()
+  totalCars!: number;
+
+  @Expose()
+  totalOrders!: number;
+
+  @Expose()
+  totalRevenue!: number;
+
+  @Expose()
+  lowStockCount!: number;
+
+  constructor(partial: Partial<DashboardStatsDto>) {
+    Object.assign(this, partial);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\dto\get-report.dto.ts
+############################################################
+
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsOptional } from 'class-validator';
+
+export class GetReportDto {
+  @ApiPropertyOptional({
+    description: 'Start date for the report range (ISO 8601)',
+  })
+  @IsDateString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'End date for the report range (ISO 8601)',
+  })
+  @IsDateString()
+  @IsOptional()
+  endDate?: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\interfaces\reports.repository.interface.ts
+############################################################
+
+import { Part } from '@prisma/client';
+
+export const REPORTS_REPOSITORY = 'REPORTS_REPOSITORY';
+
+export interface DashboardMetrics {
+  users: number;
+  cars: number;
+  orders: number;
+  revenue: number;
+  lowStockCount: number;
+}
+
+export interface IReportsRepository {
+  getDashboardMetrics(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DashboardMetrics>;
+  getLowStockParts(threshold?: number): Promise<Part[]>;
+  getTopSellingServices(limit?: number): Promise<any[]>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\admin\reports\repositories\reports.prisma.repository.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { DashboardMetrics } from '../interfaces/reports.repository.interface';
+import type { IReportsRepository } from '../interfaces/reports.repository.interface';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { Part, OrderStatus } from '@prisma/client';
+
+@Injectable()
+export class ReportsPrismaRepository implements IReportsRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async getDashboardMetrics(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DashboardMetrics> {
+    // Basic date filtering for orders if needed
+    const dateFilter =
+      startDate && endDate
+        ? {
+            createdAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          }
+        : {};
+
+    const [users, cars, orders, revenueAgg, lowStock] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.car.count(),
+      this.prisma.order.count({ where: dateFilter }),
+      this.prisma.order.aggregate({
+        _sum: { totalPrice: true },
+        where: {
+          ...dateFilter,
+          status: { not: OrderStatus.CANCELLED }, // Don't count cancelled orders
+        },
+      }),
+      this.prisma.part.count({
+        where: {
+          quantity: { lte: 5 }, // You can make this dynamic if needed
+        },
+      }),
+    ]);
+
+    return {
+      users,
+      cars,
+      orders,
+      revenue: revenueAgg._sum.totalPrice
+        ? Number(revenueAgg._sum.totalPrice)
+        : 0,
+      lowStockCount: lowStock,
+    };
+  }
+
+  async getLowStockParts(threshold: number = 5): Promise<Part[]> {
+    return this.prisma.part.findMany({
+      where: {
+        quantity: { lte: threshold },
+      },
+      orderBy: { quantity: 'asc' },
+    });
+  }
+
+  async getTopSellingServices(limit: number = 5): Promise<any[]> {
+    // Complex grouping: Count how many times each serviceId appears in OrderItems
+    const result = await this.prisma.orderItem.groupBy({
+      by: ['serviceId'],
+      _count: {
+        serviceId: true,
+      },
+      where: {
+        serviceId: { not: null },
+      },
+      orderBy: {
+        _count: {
+          serviceId: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    // We need to fetch the actual Service names because groupBy only gives IDs
+    // In a pure SQL view this is easier, but here we do a second lookup
+    const serviceIds = result.map((r) => r.serviceId as string);
+    const services = await this.prisma.service.findMany({
+      where: { id: { in: serviceIds } },
+    });
+
+    return result.map((r) => {
+      const service = services.find((s) => s.id === r.serviceId);
+      return {
+        serviceName: service?.name || 'Unknown',
+        count: r._count.serviceId,
+      };
+    });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\auth.controller.ts
+############################################################
+
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto'; // You might want to rename this DTO to SignupDto later, but keep for now
+import { LoginDto } from './dto/login.dto';
+import { AuthGuard } from '@nestjs/passport'; // or your JwtAuthGuard
+import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+// import { SignupDto } from './dto/auth.dto'; // Use the correct DTO import if you switched
+
+@ApiTags('Auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  @ApiOperation({ summary: 'Register a new user' })
+  // @ApiBody({ type: SignupDto }) 
+  register(@Body() dto: any) { // Use 'any' temporarily if DTOs are fighting, or import SignupDto
+    // FIX: Change .register() to .signup()
+    return this.authService.signup(dto); 
+  }
+
+  @Post('login')
+  @ApiOperation({ summary: 'Login' })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @Post('refresh')
+  @UseGuards(AuthGuard('jwt-refresh')) // Ensure you have this guard or remove if not using refresh tokens yet
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Refresh access token' })
+  refresh(@Body('userId') userId: string) {
+    // FIX: You need to add this method to AuthService (see Fix 2)
+    return this.authService.refresh(userId); 
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\auth.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthService } from './auth.service';
+import { AuthController } from './auth.controller';
+import { UsersModule } from '../users/users.module'; // Import this
+import { PrismaModule } from '../prisma/prisma.module';
+import { JwtStrategy } from './jwt.strategy';
+import { RefreshStrategy } from './refresh.strategy'; // If you have this
+
+@Module({
+  imports: [
+    UsersModule,
+    PrismaModule,
+    PassportModule,
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_ACCESS_SECRET');
+
+        if (!secret) {
+          throw new Error('JWT_ACCESS_SECRET is not defined in configuration');
+        }
+
+        return {
+          secret,
+          signOptions: { expiresIn: '15m' },
+        };
+      },
+      inject: [ConfigService],
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [AuthService, JwtStrategy, RefreshStrategy],
+  exports: [AuthService],
+})
+export class AuthModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\auth.service.ts
+############################################################
+
+// src/auth/auth.service.ts
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { UsersService } from '../users/users.service';
+import { LoginDto, SignupDto } from './dto/auth.dto';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+  ) {}
+
+  async signup(dto: SignupDto) {
+    const user = await this.usersService.create(dto);
+    return this.generateTokens(user);
+  }
+
+  async login(dto: LoginDto) {
+    const user = await this.usersService.findByEmail(dto.email);
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
+    const isMatch = await bcrypt.compare(dto.password, user.password);
+    if (!isMatch) throw new UnauthorizedException('Invalid credentials');
+
+    return this.generateTokens(user);
+  }
+
+  private async generateTokens(user: any) {
+    const payload = { 
+      sub: user.id, 
+      email: user.email, 
+      role: user.role,
+      organizationId: user.organizationId 
+    };
+
+    // FIX: Ensure secret is never undefined. 
+    // In production, ensure these ENV variables are set!
+    const atSecret = process.env.JWT_SECRET || 'super_secret_fallback';
+    const rtSecret = process.env.JWT_REFRESH_SECRET || 'super_refresh_secret_fallback';
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, { 
+        expiresIn: '15m', 
+        secret: atSecret 
+      }),
+      this.jwtService.signAsync(payload, { 
+        expiresIn: '7d', 
+        secret: rtSecret 
+      }),
+    ]);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId
+      }
+    };
+  }
+async refresh(userId: string) {
+    // Simple refresh logic: verify user exists and issue new tokens
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+    
+    return this.generateTokens(user);
+  }
+
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\jwt.strategy.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      // FIX: Match the fallback used in AuthService ('super_secret_fallback')
+      secretOrKey: process.env.JWT_SECRET || 'super_secret_fallback',
+    });
+  }
+
+  async validate(payload: any) {
+    return { 
+      userId: payload.sub, 
+      email: payload.email, 
+      role: payload.role,
+      organizationId: payload.organizationId 
+    };
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\refresh.strategy.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy } from 'passport-jwt';
+import { RefreshJwtPayload } from './types/jwt-payload.type';
+import { jwtFromBody } from './utils/jwt-from-request';
+
+@Injectable()
+export class RefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+  constructor() {
+    super({
+      jwtFromRequest: jwtFromBody('refreshToken'),
+      secretOrKey: process.env.JWT_REFRESH_SECRET as string,
+    });
+  }
+
+  validate(payload: RefreshJwtPayload) {
+    return { userId: payload.sub };
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\decorators\roles.decorator.ts
+############################################################
+
+import { SetMetadata } from '@nestjs/common';
+
+export const ROLES_KEY = 'roles';
+
+export type AppRole = 'USER' | 'ADMIN' | 'ACCOUNT_MANAGER';
+export const Roles = (...roles: AppRole[]) => SetMetadata(ROLES_KEY, roles);
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\dto\auth.dto.ts
+############################################################
+
+// src/auth/dto/auth.dto.ts
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { UserRole } from '@prisma/client';
+
+export class SignupDto {
+  @IsEmail()
+  email!: string;
+
+  @IsNotEmpty()
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  password!: string;
+
+  @IsNotEmpty()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  // --- B2B / Corporate Onboarding Fields ---
+  
+  @IsOptional()
+  @IsString()
+  organizationName?: string; // If provided, we create a Company!
+
+  @IsOptional()
+  @IsString()
+  taxId?: string; // Optional tax ID for the company
+}
+
+export class LoginDto {
+  @IsEmail()
+  email!: string;
+
+  @IsNotEmpty()
+  password!: string;
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\dto\login.dto.ts
+############################################################
+
+import { IsEmail, IsString } from 'class-validator';
+
+export class LoginDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  password!: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\dto\register.dto.ts
+############################################################
+
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+
+export class RegisterDto {
+  @ApiProperty({ example: 'John Doe', description: 'Full name of the user' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiProperty({ example: 'john.doe@example.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @ApiProperty({ example: 'SecureP@ss123', minLength: 8 })
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password!: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\guards\jwt-auth.guard.ts
+############################################################
+
+import { AuthGuard } from '@nestjs/passport';
+
+export class JwtAuthGuard extends AuthGuard('jwt') {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\guards\roles.guard.ts
+############################################################
+
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+    role: 'USER' | 'ADMIN';
+  };
+}
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<
+      Array<'USER' | 'ADMIN'>
+    >(ROLES_KEY, [context.getHandler(), context.getClass()]);
+
+    if (!requiredRoles) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+
+    return requiredRoles.includes(request.user.role);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\types\auth-user.type.ts
+############################################################
+
+export interface AuthUser {
+  userId: string;
+  role: 'USER' | 'ADMIN';
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\types\jwt-payload.type.ts
+############################################################
+
+export interface JwtPayload {
+  sub: string;
+  role: 'USER' | 'ADMIN';
+}
+
+export interface RefreshJwtPayload {
+  sub: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\auth\utils\jwt-from-request.ts
+############################################################
+
+import type { Request } from 'express';
+import type { JwtFromRequestFunction } from 'passport-jwt';
+
+/**
+ * Strict, ESLint-safe JWT extractors.
+ * No passport-jwt helpers are used.
+ */
+
+export const jwtFromAuthorizationHeader =
+  (): JwtFromRequestFunction =>
+  (req: Request): string | null => {
+    if (!req?.headers?.authorization) {
+      return null;
+    }
+
+    const [type, token] = req.headers.authorization.split(' ');
+
+    return type === 'Bearer' && token ? token : null;
+  };
+
+export const jwtFromBody =
+  (field: string): JwtFromRequestFunction =>
+  (req: Request): string | null => {
+    if (!req.body) {
+      return null;
+    }
+
+    // Cast req.body (which is any) to a Record to safely access fields
+    const body = req.body as Record<string, unknown>;
+    const value = body[field];
+
+    return typeof value === 'string' ? value : null;
+  };
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\cars.controller.ts
+############################################################
+
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request as Req, // Simple alias to avoid name clashes
+} from '@nestjs/common';
+import type { Request } from 'express'; // <--- Use 'import type' here
+import { CarsService } from './cars.service';
+import { CreateCarDto } from './dto/create-car.dto';
+import { UpdateCarDto } from './dto/update-car.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('cars')
+@UseGuards(JwtAuthGuard)
+export class CarsController {
+  constructor(private readonly carsService: CarsService) {}
+
+  @Post()
+  create(@Req() req: Request, @Body() createCarDto: CreateCarDto) {
+    return this.carsService.create(req.user, createCarDto);
+  }
+
+  @Get()
+  findAll(@Req() req: Request) {
+    return this.carsService.findAll(req.user);
+  }
+
+  @Get(':id')
+  findOne(@Req() req: Request, @Param('id') id: string) {
+    return this.carsService.findOne(id, req.user);
+  }
+
+  @Patch(':id')
+  update(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() updateCarDto: UpdateCarDto,
+  ) {
+    return this.carsService.update(id, updateCarDto, req.user);
+  }
+
+  @Delete(':id')
+  remove(@Req() req: Request, @Param('id') id: string) {
+    return this.carsService.remove(id, req.user);
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\cars.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { CarsService } from './cars.service';
+import { CarsController } from './cars.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { CarsPrismaRepository } from './repositories/cars.prisma.repository';
+import { CARS_REPOSITORY } from './interfaces/cars.repository.interface';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [CarsController],
+  providers: [
+    CarsService,
+    {
+      provide: CARS_REPOSITORY,
+      useClass: CarsPrismaRepository,
+    },
+  ],
+  exports: [CarsService],
+})
+export class CarsModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\cars.service.ts
+############################################################
+
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateCarDto } from './dto/create-car.dto';
+import { UpdateCarDto } from './dto/update-car.dto'; // Ensure you have this file (partial of CreateCarDto)
+import { UserRole } from '@prisma/client';
+
+@Injectable()
+export class CarsService {
+  constructor(private prisma: PrismaService) {}
+
+  // 1. CREATE with "Dual Ownership" Logic
+  async create(userContext: any, dto: CreateCarDto) {
+    // A. Corporate Logic (B2B)
+    if (userContext.organizationId) {
+      return this.createFleetCar(userContext.organizationId, dto);
+    }
+    
+    // B. Personal Logic (B2C)
+    return this.createPersonalCar(userContext.userId, dto);
+  }
+
+  // --- Internal Helper: B2B Logic ---
+  private async createFleetCar(orgId: string, dto: CreateCarDto) {
+    // Check Fleet Limits (Example: 50 cars max)
+    // In a real app, fetch 'maxFleetSize' from the Organization table
+    const currentCount = await this.prisma.car.count({
+      where: { organizationId: orgId },
+    });
+
+    const FLEET_LIMIT = 50; // Hardcoded for now, or fetch from Org
+    if (currentCount >= FLEET_LIMIT) {
+      throw new ForbiddenException(
+        `Fleet limit reached (${FLEET_LIMIT}). Contact sales to upgrade.`,
+      );
+    }
+
+    return this.prisma.car.create({
+      data: {
+        ...dto,
+        organizationId: orgId, // Owned by Company
+        userId: null,          // No single personal owner
+      },
+    });
+  }
+
+  // --- Internal Helper: B2C Logic ---
+  private async createPersonalCar(userId: string, dto: CreateCarDto) {
+    // Check Personal Limits (Strict 2 cars)
+    const currentCount = await this.prisma.car.count({
+      where: { userId },
+    });
+
+    if (currentCount >= 2) {
+      throw new ForbiddenException(
+        'Free accounts are limited to 2 vehicles. Please upgrade.',
+      );
+    }
+
+    return this.prisma.car.create({
+      data: {
+        ...dto,
+        userId: userId,        // Owned by User
+        organizationId: null,
+      },
+    });
+  }
+
+  // 2. FIND ALL (Context Aware)
+  async findAll(userContext: any) {
+    // If Manager/Driver -> Show Company Fleet
+    if (userContext.organizationId) {
+      return this.prisma.car.findMany({
+        where: { organizationId: userContext.organizationId },
+        include: { model: { include: { brand: true } } },
+      });
+    }
+
+    // If Normal User -> Show Personal Cars
+    return this.prisma.car.findMany({
+      where: { userId: userContext.userId },
+      include: { model: { include: { brand: true } } },
+    });
+  }
+
+  // 3. FIND ONE (Security Check)
+  async findOne(id: string, userContext: any) {
+    const car = await this.prisma.car.findUnique({
+      where: { id },
+      include: { model: true },
+    });
+
+    if (!car) throw new NotFoundException('Car not found');
+
+    // Security: Is this MY car? Or MY COMPANY'S car?
+    const isMyPersonal = car.userId === userContext.userId;
+    const isMyFleet = car.organizationId === userContext.organizationId;
+
+    if (!isMyPersonal && !isMyFleet && userContext.role !== 'ADMIN') {
+      throw new ForbiddenException('You do not have access to this vehicle');
+    }
+
+    return car;
+  }
+
+  // 4. UPDATE
+  async update(id: string, dto: UpdateCarDto, userContext: any) {
+    // Reuse findOne to ensure security permissions
+    await this.findOne(id, userContext); 
+
+    return this.prisma.car.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  // 5. REMOVE
+  async remove(id: string, userContext: any) {
+    await this.findOne(id, userContext); // Security Check
+
+    return this.prisma.car.delete({
+      where: { id },
+    });
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\dto\car-response.dto.ts
+############################################################
+
+import { Exclude, Expose, Type } from 'class-transformer';
+
+export class CarResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  userId!: string;
+
+  @Expose()
+  modelId!: string;
+
+  @Expose()
+  year!: number;
+
+  @Expose()
+  mileageKm!: number;
+
+  @Expose()
+  plateNumber!: string;
+
+  @Expose()
+  color!: string;
+
+  @Expose()
+  createdAt!: Date;
+
+  @Expose()
+  vin?: string | null;
+
+  @Expose()
+  @Type(() => Object)
+  model?: any;
+
+  constructor(partial: Partial<CarResponseDto>) {
+    Object.assign(this, partial);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\dto\create-car.dto.ts
+############################################################
+
+import { IsInt, IsNotEmpty, IsString, Length, Min, Max } from 'class-validator';
+
+export class CreateCarDto {
+  @IsNotEmpty()
+  @IsString()
+  modelId!: string; // We link to the CarModel (Toyota Corolla), not just a string name
+
+  @IsInt()
+  @Min(1900)
+  @Max(new Date().getFullYear() + 1)
+  year!: number;
+
+  @IsInt()
+  @Min(0)
+  mileageKm!: number;
+
+  @IsNotEmpty()
+  @IsString()
+  color!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Length(17, 17, { message: 'VIN must be exactly 17 characters' })
+  vin!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  plateNumber!: string;
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\dto\update-car.dto.ts
+############################################################
+
+import { PartialType } from '@nestjs/swagger';
+import { CreateCarDto } from './create-car.dto';
+
+export class UpdateCarDto extends PartialType(CreateCarDto) {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\interfaces\cars.repository.interface.ts
+############################################################
+
+import { Car } from '@prisma/client';
+import { CreateCarDto } from '../dto/create-car.dto';
+import { UpdateCarDto } from '../dto/update-car.dto';
+
+export const CARS_REPOSITORY = 'CARS_REPOSITORY';
+
+export interface ICarsRepository {
+  create(userId: string, data: CreateCarDto): Promise<Car>;
+  findAllByUserId(userId: string): Promise<Car[]>;
+  findById(id: string): Promise<Car | null>;
+  update(id: string, data: UpdateCarDto): Promise<Car>;
+  delete(id: string): Promise<void>;
+  findByIdentifier(identifier: {
+    plateNumber?: string;
+    vin?: string;
+  }): Promise<Car | null>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\cars\repositories\cars.prisma.repository.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { ICarsRepository } from '../interfaces/cars.repository.interface';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateCarDto } from '../dto/create-car.dto';
+import { UpdateCarDto } from '../dto/update-car.dto';
+import { Car } from '@prisma/client';
+
+@Injectable()
+export class CarsPrismaRepository implements ICarsRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(userId: string, data: CreateCarDto): Promise<Car> {
+    return this.prisma.car.create({
+      data: {
+        userId,
+        ...data,
+      },
+      include: { model: { include: { brand: true } } },
+    });
+  }
+
+  async findAllByUserId(userId: string): Promise<Car[]> {
+    return this.prisma.car.findMany({
+      where: { userId },
+      include: {
+        model: {
+          include: { brand: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findById(id: string): Promise<Car | null> {
+    return this.prisma.car.findUnique({
+      where: { id },
+      include: { model: { include: { brand: true } } },
+    });
+  }
+
+  async findByIdentifier(identifier: {
+    plateNumber?: string;
+    vin?: string;
+  }): Promise<Car | null> {
+    const orConditions: any[] = [];
+
+    if (identifier.plateNumber) {
+      orConditions.push({ plateNumber: identifier.plateNumber });
+    }
+
+    if (identifier.vin) {
+      orConditions.push({ vin: identifier.vin });
+    }
+
+    if (orConditions.length === 0) {
+      return null;
+    }
+
+    return this.prisma.car.findFirst({
+      where: {
+        OR: orConditions,
+      },
+    });
+  }
+
+  async update(id: string, data: UpdateCarDto): Promise<Car> {
+    return this.prisma.car.update({
+      where: { id },
+      data,
+      include: { model: { include: { brand: true } } },
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.car.delete({ where: { id } });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\common\dto\pagination.dto.ts
+############################################################
+
+import { IsInt, IsOptional, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+
+export class PaginationDto {
+  @ApiPropertyOptional({
+    description: 'Number of records to skip',
+    example: 0,
+    minimum: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  skip?: number;
+
+  @ApiPropertyOptional({
+    description: 'Number of records to take',
+    example: 20,
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  take?: number;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\common\filters\all-exceptions.filter.ts
+############################################################
+
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
+import { Prisma } from '@prisma/client';
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
+  constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const { httpAdapter } = this.httpAdapterHost;
+    const ctx = host.switchToHttp();
+
+    let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Internal server error';
+    let error = 'Internal Server Error';
+
+    // 1. Handle NestJS HttpExceptions (e.g. NotFoundException, BadRequestException)
+    if (exception instanceof HttpException) {
+      httpStatus = exception.getStatus();
+      const response = exception.getResponse();
+
+      // Extract message from object or string
+      if (typeof response === 'object' && response !== null) {
+        const res = response as { message?: string | string[]; error?: string };
+
+        // FIX: Handle both array and string safely, falling back to default if undefined
+        const incomingMessage = Array.isArray(res.message)
+          ? res.message[0]
+          : res.message;
+
+        message = incomingMessage || message;
+        error = res.error || error;
+      } else {
+        message = response;
+      }
+    }
+    // 2. Handle Prisma Errors
+    else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      switch (exception.code) {
+        case 'P2002': // Unique constraint failed
+          httpStatus = HttpStatus.CONFLICT;
+          message = `Duplicate entry: ${(exception.meta as { target?: string })?.target} already exists.`;
+          error = 'Conflict';
+          break;
+        case 'P2025': // Record not found
+          httpStatus = HttpStatus.NOT_FOUND;
+          message = 'Record not found.';
+          error = 'Not Found';
+          break;
+        case 'P2003': // Foreign key constraint failed
+          httpStatus = HttpStatus.BAD_REQUEST;
+          message = 'Invalid reference: Related record does not exist.';
+          error = 'Bad Request';
+          break;
+        default:
+          this.logger.error(
+            `Unhandled Prisma Error: ${exception.code}`,
+            exception,
+          );
+          break;
+      }
+    }
+    // 3. Log unknown errors
+    else {
+      this.logger.error('Unhandled Exception', exception);
+    }
+
+    const responseBody = {
+      statusCode: httpStatus,
+      message: Array.isArray(message) ? message[0] : message,
+      error,
+      timestamp: new Date().toISOString(),
+      path: httpAdapter.getRequestUrl(ctx.getRequest()),
+    };
+
+    httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\common\interceptors\transform.interceptor.ts
+############################################################
+
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+export interface Response<T> {
+  data: T;
+  statusCode: number;
+  timestamp: string;
+}
+
+@Injectable()
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  Response<T>
+> {
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<Response<T>> {
+    const ctx = context.switchToHttp();
+    const response = ctx.getResponse();
+
+    return next.handle().pipe(
+      map((data) => ({
+        statusCode: response.statusCode,
+        timestamp: new Date().toISOString(),
+        // Check if data is already an object with 'data' property (pagination)
+        data: data && data.data ? data.data : data,
+        meta: data && data.meta ? data.meta : undefined, // Support pagination meta
+      })),
+    );
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\common\queues\queue.constants.ts
+############################################################
+
+export const QUEUE_MAINTENANCE = 'maintenance';
+export const QUEUE_STOCK = 'stock';
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\common\queues\queue.module.ts
+############################################################
+
+import { Global, Module } from '@nestjs/common';
+import { Queue } from 'bullmq';
+import IORedis from 'ioredis';
+
+export const redisConnection = new IORedis({
+  host: process.env.REDIS_HOST,
+  port: Number(process.env.REDIS_PORT),
+});
+
+@Global()
+@Module({
+  providers: [
+    {
+      provide: 'MAINTENANCE_QUEUE',
+      useFactory: () =>
+        new Queue('maintenance', {
+          connection: redisConnection,
+        }),
+    },
+    {
+      provide: 'STOCK_QUEUE',
+      useFactory: () =>
+        new Queue('stock', {
+          connection: redisConnection,
+        }),
+    },
+  ],
+  exports: ['MAINTENANCE_QUEUE', 'STOCK_QUEUE'],
+})
+export class QueueModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\inventory.controller.ts
+############################################################
+
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { InventoryService } from './inventory.service';
+import { CreatePartDto } from './dto/create-part.dto';
+import { UpdatePartDto } from './dto/update-part.dto';
+import { PartResponseDto } from './dto/part-response.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
+
+@ApiTags('Inventory')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('inventory')
+export class InventoryController {
+  constructor(private readonly inventoryService: InventoryService) {}
+
+  @Post()
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER) // FIX: Allow Managers to add parts
+  @ApiOperation({ summary: 'Add a new part to inventory' })
+  @ApiResponse({ status: 201, description: 'Part created successfully' })
+  async create(@Body() createPartDto: CreatePartDto) {
+    const part = await this.inventoryService.create(createPartDto);
+    return new PartResponseDto(part);
+  }
+
+  @Get()
+  // FIX: Add ACCOUNT_MANAGER to the allowed list
+  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER) 
+  @ApiOperation({ summary: 'List all parts with pagination and search' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by name or SKU' })
+  async findAll(
+    @Query() pagination: PaginationDto,
+    @Query('search') search?: string,
+  ) {
+    const parts = await this.inventoryService.findAll(pagination, search);
+    return parts.map((part) => new PartResponseDto(part));
+  }
+
+  @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER) // FIX
+  @ApiOperation({ summary: 'Get part details' })
+  async findOne(@Param('id') id: string) {
+    const part = await this.inventoryService.findOne(id);
+    return new PartResponseDto(part);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER) // FIX
+  @ApiOperation({ summary: 'Update part details' })
+  async update(
+    @Param('id') id: string,
+    @Body() updatePartDto: UpdatePartDto,
+  ) {
+    const part = await this.inventoryService.update(id, updatePartDto);
+    return new PartResponseDto(part);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete a part (Admin only)' })
+  async remove(@Param('id') id: string) {
+    return this.inventoryService.remove(id);
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\inventory.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { InventoryService } from './inventory.service';
+import { InventoryController } from './inventory.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { INVENTORY_REPOSITORY } from './interfaces/inventory.repository.interface';
+import { InventoryPrismaRepository } from './repositories/inventory.prisma.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [InventoryController],
+  providers: [
+    InventoryService,
+    {
+      provide: INVENTORY_REPOSITORY,
+      useClass: InventoryPrismaRepository,
+    },
+  ],
+  exports: [InventoryService],
+})
+export class InventoryModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\inventory.service.ts
+############################################################
+
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import type { IInventoryRepository } from './interfaces/inventory.repository.interface';
+import { INVENTORY_REPOSITORY } from './interfaces/inventory.repository.interface';
+import { CreatePartDto } from './dto/create-part.dto';
+import { UpdatePartDto } from './dto/update-part.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+
+@Injectable()
+export class InventoryService {
+  constructor(
+    @Inject(INVENTORY_REPOSITORY)
+    private readonly inventoryRepository: IInventoryRepository,
+  ) {}
+
+  async create(dto: CreatePartDto) {
+    const existing = await this.inventoryRepository.findBySku(dto.sku);
+    if (existing) {
+      throw new ConflictException(`Part with SKU "${dto.sku}" already exists`);
+    }
+    return this.inventoryRepository.create(dto);
+  }
+
+  async findAll(pagination: PaginationDto, search?: string) {
+    return this.inventoryRepository.findAll(pagination, search);
+  }
+
+  async findOne(id: string) {
+    const part = await this.inventoryRepository.findById(id);
+    if (!part) {
+      throw new NotFoundException(`Part with ID ${id} not found`);
+    }
+    return part;
+  }
+
+  async update(id: string, dto: UpdatePartDto) {
+    await this.findOne(id); // Ensure exists
+
+    if (dto.sku) {
+      const duplicate = await this.inventoryRepository.findBySku(dto.sku);
+      if (duplicate && duplicate.id !== id) {
+        throw new ConflictException(`Part with SKU "${dto.sku}" already exists`);
+      }
+    }
+
+    return this.inventoryRepository.update(id, dto);
+  }
+
+  async remove(id: string) {
+    await this.findOne(id);
+    return this.inventoryRepository.delete(id);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\stock.jobs.ts
+############################################################
+
+import { Inject, Injectable } from '@nestjs/common';
+import { Queue } from 'bullmq';
+
+@Injectable()
+export class StockJobs {
+  constructor(
+    @Inject('STOCK_QUEUE')
+    private readonly queue: Queue,
+  ) {}
+
+  async checkStock(itemId: string) {
+    await this.queue.add('check-stock', { itemId });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\stock.processor.ts
+############################################################
+
+import { Worker } from 'bullmq';
+import { redisConnection } from '../common/queues/queue.module';
+import { PrismaService } from '../prisma/prisma.service';
+
+const LOW_STOCK_THRESHOLD = 5;
+
+new Worker<{ itemId: string }>(
+  'stock',
+  async (job) => {
+    const prisma = new PrismaService();
+    const { itemId } = job.data;
+
+    const item = await prisma.part.findUnique({
+      where: { id: itemId },
+    });
+
+    if (item && item.quantity <= LOW_STOCK_THRESHOLD) {
+      console.warn(`LOW STOCK ALERT: ${item.name} (${item.quantity})`);
+      // email / Slack / webhook later
+    }
+  },
+  { connection: redisConnection },
+);
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\dto\create-part.dto.ts
+############################################################
+
+import { 
+  IsNotEmpty, 
+  IsString, 
+  IsNumber, 
+  IsOptional, 
+  IsArray, 
+  IsUUID, 
+  Min 
+} from 'class-validator';
+
+export class CreatePartDto {
+  @IsNotEmpty()
+  @IsString()
+  name!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  sku!: string; // Stock Keeping Unit (Unique)
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsNumber()
+  @Min(0)
+  price!: number;
+
+  @IsNumber()
+  @Min(0)
+  stockQty!: number;
+
+  // THE SMART LINK: Array of Car Model IDs this part fits
+  @IsArray()
+  @IsUUID("4", { each: true })
+  compatibleModelIds!: string[]; 
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\dto\part-response.dto.ts
+############################################################
+
+import { Expose, Transform } from 'class-transformer';
+import { Prisma } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class PartResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  name!: string;
+
+  @Expose()
+  sku!: string;
+
+  @Expose()
+  description?: string | null;
+
+  @Expose()
+  quantity!: number;
+
+  @Expose()
+  lowStockThreshold!: number;
+
+  @ApiProperty({ type: Number, example: 15.5 })
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Prisma.Decimal ? value.toNumber() : (value as number),
+  )
+  price!: number | Prisma.Decimal;
+
+  @Expose()
+  location?: string | null;
+
+  @Expose()
+  createdAt!: Date;
+
+  constructor(
+    partial: Partial<PartResponseDto> | { price?: number | Prisma.Decimal },
+  ) {
+    Object.assign(this, partial);
+    if (this.price instanceof Prisma.Decimal) {
+      this.price = this.price.toNumber();
+    }
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\dto\update-part.dto.ts
+############################################################
+
+import { PartialType } from '@nestjs/swagger';
+import { CreatePartDto } from './create-part.dto';
+
+export class UpdatePartDto extends PartialType(CreatePartDto) {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\dto\update-stock.dto.ts
+############################################################
+
+import { IsInt, Min } from 'class-validator';
+
+export class UpdateStockDto {
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\interfaces\inventory.repository.interface.ts
+############################################################
+
+import { Part } from '@prisma/client';
+import { CreatePartDto } from '../dto/create-part.dto';
+import { UpdatePartDto } from '../dto/update-part.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+export const INVENTORY_REPOSITORY = 'INVENTORY_REPOSITORY';
+
+export interface IInventoryRepository {
+  create(data: CreatePartDto): Promise<Part>;
+  findAll(pagination: PaginationDto, search?: string): Promise<Part[]>;
+  findById(id: string): Promise<Part | null>;
+  findBySku(sku: string): Promise<Part | null>;
+  update(id: string, data: UpdatePartDto): Promise<Part>;
+  delete(id: string): Promise<void>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\inventory\repositories\inventory.prisma.repository.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { IInventoryRepository } from '../interfaces/inventory.repository.interface';
+import { PrismaService } from '../../prisma/prisma.service';
+import { Part } from '@prisma/client';
+import { CreatePartDto } from '../dto/create-part.dto';
+import { UpdatePartDto } from '../dto/update-part.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+@Injectable()
+export class InventoryPrismaRepository implements IInventoryRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(data: CreatePartDto): Promise<Part> {
+    // Extract model IDs to handle the relation separately
+    const { compatibleModelIds, ...partData } = data;
+
+    return this.prisma.part.create({
+      data: {
+        ...partData,
+        // THE FIX: Explicitly connect relations
+        compatibleModels: {
+          connect: compatibleModelIds.map((id) => ({ id })),
+        },
+      },
+    });
+  }
+
+  async findAll(pagination: PaginationDto, search?: string): Promise<Part[]> {
+    const { skip = 0, take = 20 } = pagination;
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    return this.prisma.part.findMany({
+      skip,
+      take,
+      where,
+      orderBy: { quantity: 'asc' }, // Useful to see low stock first
+    });
+  }
+
+  async findById(id: string): Promise<Part | null> {
+    return this.prisma.part.findUnique({ where: { id } });
+  }
+
+  async findBySku(sku: string): Promise<Part | null> {
+    return this.prisma.part.findUnique({ where: { sku } });
+  }
+
+  async update(id: string, data: UpdatePartDto): Promise<Part> {
+    return this.prisma.part.update({ where: { id }, data });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.part.delete({ where: { id } });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\maintenance.controller.ts
+############################################################
+
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { MaintenanceService } from './maintenance.service';
+import { CreateMaintenanceRuleDto } from './dto/create-maintenance-rule.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard'; // Assuming you have this
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
+
+@Controller('maintenance')
+@UseGuards(JwtAuthGuard)
+export class MaintenanceController {
+  constructor(private readonly maintenanceService: MaintenanceService) {}
+
+  // 1. Admin creates "DNA" (Rules)
+  // Only Admins or Managers should define rules
+  // @UseGuards(RolesGuard)
+  // @Roles(UserRole.ADMIN) 
+  @Post('rules')
+  createRule(@Body() dto: CreateMaintenanceRuleDto) {
+    return this.maintenanceService.createRule(dto);
+  }
+
+  // 2. Get Rules for a specific Model (e.g. "What is the schedule for a Corolla?")
+  @Get('rules/model/:modelId')
+  getRulesByModel(@Param('modelId') modelId: string) {
+    return this.maintenanceService.getRulesForModel(modelId);
+  }
+
+  // 3. THE SMART ENDPOINT: Get Status for MY Car
+  @Get('status/:carId')
+  getCarStatus(@Param('carId') carId: string) {
+    return this.maintenanceService.getCarMaintenanceStatus(carId);
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\maintenance.cron.ts
+############################################################
+
+import { Cron } from '@nestjs/schedule';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class MaintenanceCron {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Cron('0 2 * * *') // every day at 2 AM
+  async scanAllCars() {
+    const cars = await this.prisma.car.findMany();
+    console.log(`Scanning ${cars.length} cars for maintenance`);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\maintenance.jobs.ts
+############################################################
+
+import { Inject, Injectable } from '@nestjs/common';
+import { Queue } from 'bullmq';
+
+@Injectable()
+export class MaintenanceJobs {
+  constructor(
+    @Inject('MAINTENANCE_QUEUE')
+    private readonly queue: Queue,
+  ) {}
+
+  async scheduleCheck(carId: string) {
+    await this.queue.add(
+      'check-maintenance',
+      { carId },
+      { delay: 60_000 }, // 1 minute (demo); cron later
+    );
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\maintenance.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { MaintenanceService } from './maintenance.service';
+import { MaintenanceController } from './maintenance.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { CarsModule } from '../cars/cars.module';
+import { MaintenanceRepository } from './repositories/maintenance.prisma.repository';
+
+@Module({
+  imports: [PrismaModule, CarsModule],
+  controllers: [MaintenanceController],
+  providers: [
+    MaintenanceService,
+    MaintenanceRepository, // <--- FIX: Provide the class directly
+  ],
+  exports: [MaintenanceService],
+})
+export class MaintenanceModule {}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\maintenance.processor.ts
+############################################################
+
+// src/maintenance/maintenance.processor.ts
+import { Worker } from 'bullmq';
+import { redisConnection } from '../common/queues/queue.module';
+import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '@nestjs/common'; // Import Logger
+
+interface MaintenanceJobData {
+  carId: string;
+}
+
+const logger = new Logger('MaintenanceProcessor'); // Create Logger instance
+
+new Worker<MaintenanceJobData>(
+  'maintenance',
+  async (job) => {
+    const prisma = new PrismaService();
+    const { carId } = job.data;
+
+    // 1. Fetch Car AND its Model ID
+    const car = await prisma.car.findUnique({
+      where: { id: carId },
+      include: { maintenanceRecords: true },
+    });
+
+    if (!car) {
+        logger.warn(`Car ${carId} not found during maintenance scan.`);
+        return;
+    }
+
+    // 2. THE FIX: Fetch rules ONLY for this car's model (Optimization)
+    const rules = await prisma.maintenanceRule.findMany({
+      where: { modelId: car.modelId }, // <--- We added this filter
+      include: { service: true },
+    });
+
+    for (const rule of rules) {
+      // Find the last time this specific service was done
+      const lastRecord = car.maintenanceRecords
+        .filter((r) => r.serviceId === rule.serviceId)
+        .sort((a, b) => b.performedAt.getTime() - a.performedAt.getTime())[0];
+
+      // Logic: If never performed, or mileage exceeded
+      if (!lastRecord) {
+        logger.log(`[Alert] Service never performed: ${rule.service.name} for Car ${car.plateNumber}`);
+        continue;
+      }
+
+      if (rule.intervalKm && (car.mileageKm - lastRecord.mileageKm >= rule.intervalKm)) {
+        logger.log(`[Alert] Maintenance Due: ${rule.service.name} for Car ${car.plateNumber}`);
+      }
+    }
+    
+    await prisma.$disconnect();
+  },
+  { connection: redisConnection },
+);
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\maintenance.service.ts
+############################################################
+
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { MaintenanceRepository } from './repositories/maintenance.prisma.repository';
+import { CreateMaintenanceRuleDto } from './dto/create-maintenance-rule.dto';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class MaintenanceService {
+  constructor(
+    private readonly repository: MaintenanceRepository,
+    private readonly prisma: PrismaService, // Direct access needed for Car fetch
+  ) {}
+
+  // --- ADMIN: Manage DNA ---
+  async createRule(dto: CreateMaintenanceRuleDto) {
+    // Check if rule already exists for this car/service combo to avoid crash
+    const existing = await this.repository.findOneRule(dto.serviceId, dto.modelId);
+    if (existing) {
+      throw new Error('Rule already exists for this car model and service.');
+    }
+    return this.repository.createRule(dto);
+  }
+
+  async getRulesForModel(modelId: string) {
+    return this.repository.findRulesByModel(modelId);
+  }
+
+  // --- CORE FEATURE: Calculate Car Health ---
+  async getCarMaintenanceStatus(carId: string) {
+    // 1. Get Car + Current Mileage + Model ID
+    const car = await this.prisma.car.findUnique({
+      where: { id: carId },
+      include: { model: true },
+    });
+    if (!car) throw new NotFoundException('Car not found');
+
+    // 2. Get "DNA" (Rules) for this Model
+    const rules = await this.repository.findRulesByModel(car.modelId);
+
+    // 3. Compute Status for each rule
+    const report = rules.map((rule) => {
+      if (!rule.intervalKm) return null; // Skip non-mileage rules for now
+
+      const interval = rule.intervalKm;
+      const mileage = car.mileageKm;
+
+      // Logic: If I am at 25,000km and interval is 10,000km...
+      // Last service should have been at 20,000. Next is 30,000.
+      const nextDueKm = Math.ceil((mileage + 1) / interval) * interval;
+      const remainingKm = nextDueKm - mileage;
+
+      // Alert Logic
+      let status = 'OK';
+      if (remainingKm < 0) status = 'OVERDUE'; // Should not happen with this math, but safe to have
+      else if (remainingKm < 1000) status = 'DUE_SOON'; // Warning threshold
+
+      return {
+        serviceName: rule.service.name,
+        category: rule.service.category,
+        interval: interval,
+        lastDueAt: nextDueKm - interval,
+        nextDueAt: nextDueKm,
+        remainingKm: remainingKm,
+        status: status,
+      };
+    });
+
+    return report.filter((r) => r !== null);
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\dto\create-maintenance-rule.dto.ts
+############################################################
+
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+
+export class CreateMaintenanceRuleDto {
+  @IsNotEmpty()
+  @IsUUID()
+  serviceId!: string; // e.g. "Oil Change" ID
+
+  @IsNotEmpty()
+  @IsUUID()
+  modelId!: string;   // e.g. "Toyota Corolla" ID (This is the new DNA link)
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  intervalKm?: number; // e.g. 10000
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  intervalMonths?: number; // e.g. 12
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\dto\maintenance-response.dto.ts
+############################################################
+
+import { Expose, Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class MaintenanceRecordResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  carId!: string;
+
+  @Expose()
+  serviceId!: string;
+
+  @Expose()
+  mileageKm!: number;
+
+  @Expose()
+  notes?: string | null;
+
+  @Expose()
+  performedAt!: Date;
+
+  // Nested service name for frontend convenience
+  @ApiProperty({ example: 'Oil Change' })
+  @Expose()
+  @Type(() => Object)
+  service?: { name: string };
+
+  constructor(partial: Partial<MaintenanceRecordResponseDto>) {
+    Object.assign(this, partial);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\dto\record-maintenance.dto.ts
+############################################################
+
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+
+export class RecordMaintenanceDto {
+  @ApiProperty({ description: 'ID of the Service performed' })
+  @IsUUID()
+  @IsNotEmpty()
+  serviceId!: string;
+
+  @ApiProperty({
+    example: 50000,
+    description: 'Car mileage at time of service',
+  })
+  @IsInt()
+  @Min(0)
+  mileageKm!: number;
+
+  @ApiPropertyOptional({ description: 'Date performed', default: 'now' })
+  @IsDateString()
+  @IsOptional()
+  performedAt?: string;
+
+  @ApiPropertyOptional({ description: 'Notes from the mechanic' })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\interfaces\maintenance.repository.interface.ts
+############################################################
+
+import { MaintenanceRecord, MaintenanceRule, Service } from '@prisma/client';
+import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
+import { RecordMaintenanceDto } from '../dto/record-maintenance.dto';
+
+export const MAINTENANCE_REPOSITORY = 'MAINTENANCE_REPOSITORY';
+export type MaintenanceRuleWithService = MaintenanceRule & { service: Service };
+
+export interface IMaintenanceRepository {
+  // Rules
+  createRule(data: CreateMaintenanceRuleDto): Promise<MaintenanceRule>;
+  findAllRules(): Promise<MaintenanceRuleWithService[]>;
+  findRuleByServiceId(serviceId: string): Promise<MaintenanceRule | null>;
+  // Records
+  createRecord(
+    carId: string,
+    data: RecordMaintenanceDto,
+  ): Promise<MaintenanceRecord>;
+  findRecordsByCarId(carId: string): Promise<MaintenanceRecord[]>;
+  findLastRecord(
+    carId: string,
+    serviceId: string,
+  ): Promise<MaintenanceRecord | null>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\maintenance\repositories\maintenance.prisma.repository.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service'; // Adjust path
+import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
+
+@Injectable()
+export class MaintenanceRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createRule(data: CreateMaintenanceRuleDto) {
+    return this.prisma.maintenanceRule.create({
+      data: {
+        serviceId: data.serviceId,
+        modelId: data.modelId, // Crucial: Link to Car Model
+        intervalKm: data.intervalKm?? null,
+        intervalMonths: data.intervalMonths?? null,
+      },
+    });
+  }
+
+  // Find all rules for a specific car model (The "DNA" fetch)
+  async findRulesByModel(modelId: string) {
+    return this.prisma.maintenanceRule.findMany({
+      where: { modelId },
+      include: { service: true },
+    });
+  }
+
+  // Find a specific rule (e.g., Oil Rule for Corolla)
+  async findOneRule(serviceId: string, modelId: string) {
+    return this.prisma.maintenanceRule.findUnique({
+      where: {
+        serviceId_modelId: { // PRISMA SYNTAX FOR COMPOSITE KEY
+          serviceId,
+          modelId,
+        },
+      },
+    });
+  }
+
+  async removeRule(id: string) {
+    return this.prisma.maintenanceRule.delete({ where: { id } });
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\orders.controller.ts
+############################################################
+
+import { Controller, Get, Post, Body, Param, UseGuards, Request as Req } from '@nestjs/common';
+import type { Request } from 'express'; // Use type-only import
+import { OrdersService } from './orders.service';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('orders')
+@UseGuards(JwtAuthGuard)
+export class OrdersController {
+  constructor(private readonly ordersService: OrdersService) {}
+
+  @Post()
+  create(@Req() req: Request, @Body() createOrderDto: CreateOrderDto) {
+    // req.user is populated by your JwtAuthGuard
+    return this.ordersService.create(req.user, createOrderDto);
+  }
+
+  @Get()
+  findAll(@Req() req: Request) {
+    return this.ordersService.findAll(req.user);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.ordersService.findOne(id);
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\orders.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { OrdersService } from './orders.service';
+import { OrdersController } from './orders.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { CarsModule } from '../cars/cars.module';
+import { ORDERS_REPOSITORY } from './interfaces/orders.repository.interface';
+import { OrdersPrismaRepository } from './repositories/orders.prisma.repository';
+
+@Module({
+  imports: [PrismaModule, CarsModule],
+  controllers: [OrdersController],
+  providers: [
+    OrdersService,
+    {
+      provide: ORDERS_REPOSITORY,
+      useClass: OrdersPrismaRepository,
+    },
+  ],
+  exports: [OrdersService],
+})
+export class OrdersModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\orders.service.spec.ts
+############################################################
+
+import { Test, TestingModule } from '@nestjs/testing';
+import { OrdersService } from './orders.service';
+import { ORDERS_REPOSITORY } from './interfaces/orders.repository.interface';
+import { CarsService } from '../cars/cars.service';
+import { UserRole } from '@prisma/client';
+
+const mockOrdersRepository = {
+  findAll: jest.fn(),
+  createTransactional: jest.fn(),
+  findById: jest.fn(),
+  updateStatus: jest.fn(),
+};
+
+const mockCarsService = {
+  findOne: jest.fn(),
+};
+
+describe('OrdersService', () => {
+  let service: OrdersService;
+  let repository: typeof mockOrdersRepository;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        OrdersService,
+        {
+          provide: ORDERS_REPOSITORY,
+          useValue: mockOrdersRepository,
+        },
+        {
+          provide: CarsService,
+          useValue: mockCarsService,
+        },
+      ],
+    }).compile();
+
+    service = module.get<OrdersService>(OrdersService);
+    repository = module.get(ORDERS_REPOSITORY);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  it('should return empty orders list', async () => {
+    repository.findAll.mockResolvedValue([]);
+
+    const result = await service.findAll(
+      { skip: 0, take: 10 },
+      'user-id',
+      UserRole.USER,
+    );
+
+    expect(result).toEqual([]);
+    expect(repository.findAll).toHaveBeenCalledWith(
+      { skip: 0, take: 10 },
+      'user-id',
+    );
+  });
+});
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\orders.service.ts
+############################################################
+
+import { 
+  Injectable, 
+  BadRequestException, 
+  NotFoundException, 
+  ForbiddenException 
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateOrderDto } from './dto/create-order.dto';
+
+@Injectable()
+export class OrdersService {
+  constructor(private prisma: PrismaService) {}
+
+  async create(userContext: any, dto: CreateOrderDto) {
+    // 1. Validate Car Ownership (Security)
+    const car = await this.prisma.car.findUnique({ where: { id: dto.carId } });
+    if (!car) throw new NotFoundException('Car not found');
+
+    const isMyPersonal = car.userId === userContext.userId;
+    const isMyFleet = car.organizationId === userContext.organizationId;
+    if (!isMyPersonal && !isMyFleet) {
+      throw new ForbiddenException('You cannot order for a car you do not own.');
+    }
+
+    // 2. THE TRANSACTION (All or Nothing)
+    return this.prisma.$transaction(async (tx) => {
+      let totalAmount = 0;
+      const orderItemsData = [];
+
+      // 3. Process Items
+      for (const item of dto.items) {
+        let price = 0;
+        let finalPartId = null;
+        let finalServiceId = null;
+
+        // A. Handle PARTS
+        if (item.partId) {
+          const part = await tx.part.findUnique({ where: { id: item.partId } });
+          if (!part) throw new NotFoundException(`Part ${item.partId} not found`);
+          
+          // Stock Check
+          if (part.quantity < item.quantity) {
+            throw new BadRequestException(`Insufficient stock for part: ${part.name}`);
+          }
+
+          // DEDUCT STOCK
+          await tx.part.update({
+            where: { id: part.id },
+            data: { quantity: { decrement: item.quantity } },
+          });
+
+          price = Number(part.price);
+          finalPartId = part.id;
+        } 
+        // B. Handle SERVICES
+        else if (item.serviceId) {
+          const service = await tx.service.findUnique({ where: { id: item.serviceId } });
+          if (!service) throw new NotFoundException(`Service ${item.serviceId} not found`);
+          
+          price = Number(service.basePrice);
+          finalServiceId = service.id;
+        } else {
+          throw new BadRequestException('Item must be a Part or a Service');
+        }
+
+        // Add to total
+        totalAmount += price * item.quantity;
+
+        // Prepare Item Data (Snapshotting Price)
+        orderItemsData.push({
+          partId: finalPartId,
+          serviceId: finalServiceId,
+          quantity: item.quantity,
+          price: price, // IMPORTANT: Saving the price at THIS moment
+        });
+      }
+
+      // 4. Create the Order Header
+      return tx.order.create({
+        data: {
+          userId: userContext.userId, // Who placed it?
+          carId: dto.carId,
+          totalPrice: totalAmount,
+          status: 'PENDING',
+          items: {
+            create: orderItemsData,
+          },
+        },
+        include: { items: true },
+      });
+    });
+  }
+
+  // Find My Orders
+  async findAll(userContext: any) {
+    // If Admin/Manager, maybe logic differs, but here is basic User view
+    return this.prisma.order.findMany({
+      where: { userId: userContext.userId },
+      include: { 
+        items: { include: { part: true, service: true } },
+        car: true 
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async findOne(id: string) {
+    return this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true, car: true }
+    });
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\dto\create-order.dto.ts
+############################################################
+
+import { 
+  IsNotEmpty, 
+  IsUUID, 
+  IsArray, 
+  ValidateNested, 
+  IsOptional, 
+  IsInt, 
+  Min 
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+class OrderItemDto {
+  @IsOptional()
+  @IsUUID()
+  partId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  serviceId?: string;
+
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
+export class CreateOrderDto {
+  @IsNotEmpty()
+  @IsUUID()
+  carId!: string; // Which car is this for?
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items!: OrderItemDto[]; // The list of things to buy
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\dto\order-item.validator.ts
+############################################################
+
+import {
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  registerDecorator,
+  ValidationOptions,
+} from 'class-validator';
+
+interface ItemInput {
+  inventoryId?: string;
+  serviceId?: string;
+}
+
+@ValidatorConstraint({ name: 'InventoryOrService', async: false })
+export class InventoryOrServiceConstraint implements ValidatorConstraintInterface {
+  validate(value: any) {
+    if (!value) return false;
+
+    const item = value as ItemInput;
+    const hasInventory = !!item.inventoryId;
+    const hasService = !!item.serviceId;
+
+    // XOR logic: (A and !B) or (!A and B)
+    return (hasInventory && !hasService) || (!hasInventory && hasService);
+  }
+
+  defaultMessage() {
+    return 'Item must provide either an inventoryId or a serviceId, but not both.';
+  }
+}
+
+export function IsInventoryOrService(validationOptions?: ValidationOptions) {
+  return function (target: new (...args: any[]) => any): void {
+    registerDecorator({
+      target: target,
+      propertyName: '',
+      ...(validationOptions && { options: validationOptions }),
+      constraints: [],
+      validator: InventoryOrServiceConstraint,
+    });
+  };
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\dto\order-response.dto.ts
+############################################################
+
+import { Expose, Transform, Type } from 'class-transformer';
+import { OrderStatus, Prisma } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
+
+class OrderItemResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  partId?: string | null;
+
+  @Expose()
+  serviceId?: string | null;
+
+  @Expose()
+  quantity!: number;
+
+  @ApiProperty({ type: Number, example: 50.0 })
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Prisma.Decimal ? value.toNumber() : (value as number),
+  )
+  price!: number | Prisma.Decimal;
+
+  // Include names for easier frontend display
+  @Expose()
+  @Transform(
+    ({
+      obj,
+    }: {
+      obj: { part?: { name?: unknown }; service?: { name?: unknown } };
+    }): string | undefined => {
+      const candidate = obj.part?.name ?? obj.service?.name;
+      return typeof candidate === 'string' ? candidate : undefined;
+    },
+  )
+  name?: string;
+
+  constructor(partial: Partial<OrderItemResponseDto>) {
+    Object.assign(this, partial);
+    if (this.price instanceof Prisma.Decimal) {
+      this.price = this.price.toNumber();
+    }
+  }
+}
+
+export class OrderResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  userId!: string;
+
+  @Expose()
+  carId!: string;
+
+  @Expose()
+  status!: OrderStatus;
+
+  @ApiProperty({ type: Number, example: 150.0 })
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Prisma.Decimal ? value.toNumber() : (value as number),
+  )
+  totalPrice!: number | Prisma.Decimal;
+
+  @Expose()
+  createdAt!: Date;
+
+  @Expose()
+  @Type(() => OrderItemResponseDto)
+  items!: OrderItemResponseDto[];
+
+  constructor(partial: Partial<OrderResponseDto>) {
+    Object.assign(this, partial);
+    if (this.totalPrice instanceof Prisma.Decimal) {
+      this.totalPrice = this.totalPrice.toNumber();
+    }
+    if (this.items && Array.isArray(this.items)) {
+      this.items = this.items.map((i) => new OrderItemResponseDto(i));
+    }
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\dto\update-order-status.dto.ts
+############################################################
+
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty } from 'class-validator';
+import { OrderStatus } from '@prisma/client';
+
+export class UpdateOrderStatusDto {
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.IN_PROGRESS })
+  @IsEnum(OrderStatus)
+  @IsNotEmpty()
+  status!: OrderStatus;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\interfaces\orders.repository.interface.ts
+############################################################
+
+import { Order, OrderStatus } from '@prisma/client';
+import { CreateOrderDto } from '../dto/create-order.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+export const ORDERS_REPOSITORY = 'ORDERS_REPOSITORY';
+
+export interface IOrdersRepository {
+  createTransactional(userId: string, data: CreateOrderDto): Promise<Order>;
+  findAll(
+    pagination: PaginationDto,
+    userId?: string,
+    status?: OrderStatus,
+  ): Promise<Order[]>;
+  findById(id: string): Promise<Order | null>;
+  updateStatus(id: string, status: OrderStatus): Promise<Order>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\orders\repositories\orders.prisma.repository.ts
+############################################################
+
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { IOrdersRepository } from '../interfaces/orders.repository.interface';
+import { PrismaService } from '../../prisma/prisma.service';
+import { Order, OrderStatus, Prisma } from '@prisma/client';
+import { CreateOrderDto } from '../dto/create-order.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+@Injectable()
+export class OrdersPrismaRepository implements IOrdersRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createTransactional(
+    userId: string,
+    data: CreateOrderDto,
+  ): Promise<Order> {
+    return this.prisma.$transaction(async (tx) => {
+      let totalPrice = 0;
+      const orderItemsData: any[] = [];
+
+      for (const item of data.items) {
+        let price = 0;
+
+        // 1. Handle Parts (Inventory)
+        if (item.partId) {
+          const part = await tx.part.findUnique({ where: { id: item.partId } });
+          if (!part)
+            throw new NotFoundException(`Part ID ${item.partId} not found`);
+          if (part.quantity < item.quantity) {
+            throw new BadRequestException(
+              `Insufficient stock for part: ${part.name}`,
+            );
+          }
+
+          price = Number(part.price);
+          // Decrement Stock
+          await tx.part.update({
+            where: { id: part.id },
+            data: { quantity: { decrement: item.quantity } },
+          });
+
+          orderItemsData.push({
+            partId: item.partId,
+            quantity: item.quantity,
+            price: new Prisma.Decimal(price),
+          });
+        }
+        // 2. Handle Services
+        else if (item.serviceId) {
+          const service = await tx.service.findUnique({ where: { id: item.serviceId } });
+          if (!service)
+            throw new NotFoundException(
+              `Service ID ${item.serviceId} not found`,
+            );
+
+          price = Number(service.basePrice);
+          orderItemsData.push({
+            serviceId: item.serviceId,
+            quantity: item.quantity,
+            price: new Prisma.Decimal(price),
+          });
+        } else {
+          throw new BadRequestException(
+            'Order item must have either partId or serviceId',
+          );
+        }
+
+        totalPrice += price * item.quantity;
+      }
+
+      // 3. Create Order
+      return tx.order.create({
+        data: {
+          userId,
+          carId: data.carId,
+          totalPrice: new Prisma.Decimal(totalPrice),
+          items: {
+            create: orderItemsData,
+          },
+        },
+        include: {
+          items: {
+            include: { part: true, service: true },
+          },
+        },
+      });
+    });
+  }
+
+  async findAll(
+    pagination: PaginationDto,
+    userId?: string,
+    status?: OrderStatus,
+  ): Promise<Order[]> {
+    const { skip = 0, take = 20 } = pagination;
+    const where: any = {};
+    if (userId) where.userId = userId;
+    if (status) where.status = status;
+
+    return this.prisma.order.findMany({
+      skip,
+      take,
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          include: { part: true, service: true },
+        },
+      },
+    });
+  }
+
+  async findById(id: string): Promise<Order | null> {
+    return this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: { part: true, service: true },
+        },
+        car: {
+          include: { model: { include: { brand: true } } },
+        },
+        user: true,
+      },
+    });
+  }
+
+  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
+    return this.prisma.order.update({
+      where: { id },
+      data: { status },
+      include: {
+        items: {
+          include: { part: true, service: true },
+        },
+      },
+    });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\prisma\prisma.module.ts
+############################################################
+
+import { Global, Module } from '@nestjs/common';
+import { PrismaService } from './prisma.service';
+
+@Global()
+@Module({
+  providers: [PrismaService],
+  exports: [PrismaService],
+})
+export class PrismaModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\prisma\prisma.service.ts
+############################################################
+
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+@Injectable()
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
+  constructor() {
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+
+    const adapter = new PrismaPg(pool);
+
+    super({
+      log: ['warn', 'error'],
+    });
+  }
+
+  async onModuleInit() {
+    await this.$connect();
+  }
+
+  async onModuleDestroy() {
+    await this.$disconnect();
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\services.controller.ts
+############################################################
+
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { ServicesService } from './services.service';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
+import { ServiceResponseDto } from './dto/service-response.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole, ServiceCategory } from '@prisma/client';
+import { Request } from 'express';
+import { AuthUser } from '../auth/types/auth-user.type';
+
+@ApiTags('Services')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('services')
+export class ServicesController {
+  constructor(private readonly servicesService: ServicesService) {}
+
+  @Post()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create a new service (Admin only)' })
+  @ApiResponse({ status: 201, description: 'Service created' })
+  async create(@Body() createServiceDto: CreateServiceDto) {
+    const service = await this.servicesService.create(createServiceDto);
+    return new ServiceResponseDto(service);
+  }
+
+  @Get()
+  @Roles(UserRole.ADMIN, UserRole.USER)
+  @ApiOperation({ summary: 'List services' })
+  @ApiQuery({ name: 'category', enum: ServiceCategory, required: false })
+  async findAll(
+    @Query() pagination: PaginationDto,
+    @Query('category') category?: ServiceCategory,
+    @Req() req?: Request & { user: AuthUser },
+  ) {
+    const isAdmin = req?.user?.role === UserRole.ADMIN;
+    const services = await this.servicesService.findAll(
+      pagination,
+      category,
+      isAdmin,
+    );
+    return services.map((s) => new ServiceResponseDto(s));
+  }
+
+  @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.USER)
+  @ApiOperation({ summary: 'Get service details' })
+  async findOne(@Param('id') id: string) {
+    const service = await this.servicesService.findOne(id);
+    return new ServiceResponseDto(service);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update service details (Admin only)' })
+  async update(
+    @Param('id') id: string,
+    @Body() updateServiceDto: UpdateServiceDto,
+  ) {
+    const service = await this.servicesService.update(id, updateServiceDto);
+    return new ServiceResponseDto(service);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete a service (Admin only)' })
+  async remove(@Param('id') id: string) {
+    return this.servicesService.remove(id);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\services.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { ServicesService } from './services.service';
+import { ServicesController } from './services.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { SERVICES_REPOSITORY } from './interfaces/services.repository.interface';
+import { ServicesPrismaRepository } from './repositories/services.prisma.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [ServicesController],
+  providers: [
+    ServicesService,
+    {
+      provide: SERVICES_REPOSITORY,
+      useClass: ServicesPrismaRepository,
+    },
+  ],
+  exports: [ServicesService],
+})
+export class ServicesModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\services.service.ts
+############################################################
+
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { SERVICES_REPOSITORY } from './interfaces/services.repository.interface';
+import type { IServicesRepository } from './interfaces/services.repository.interface';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { ServiceCategory } from '@prisma/client';
+
+@Injectable()
+export class ServicesService {
+  constructor(
+    @Inject(SERVICES_REPOSITORY)
+    private readonly servicesRepository: IServicesRepository,
+  ) {}
+
+  async create(dto: CreateServiceDto) {
+    // Check for duplicate name
+    const existing = await this.servicesRepository.findByName(dto.name);
+    if (existing) {
+      throw new ConflictException(
+        `Service with name "${dto.name}" already exists`,
+      );
+    }
+
+    return this.servicesRepository.create(dto);
+  }
+
+  async findAll(
+    pagination: PaginationDto,
+    category?: ServiceCategory,
+    isAdmin: boolean = false,
+  ) {
+    // If Admin, show all. If Customer, show only active services.
+    const activeOnly = !isAdmin;
+    return this.servicesRepository.findAll(pagination, category, activeOnly);
+  }
+
+  async findOne(id: string) {
+    const service = await this.servicesRepository.findById(id);
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+    return service;
+  }
+
+  async update(id: string, dto: UpdateServiceDto) {
+    await this.findOne(id); // Ensure exists
+
+    if (dto.name) {
+      const duplicate = await this.servicesRepository.findByName(dto.name);
+      if (duplicate && duplicate.id !== id) {
+        throw new ConflictException(
+          `Service with name "${dto.name}" already exists`,
+        );
+      }
+    }
+
+    return this.servicesRepository.update(id, dto);
+  }
+
+  async remove(id: string) {
+    await this.findOne(id);
+    return this.servicesRepository.delete(id);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\dto\create-service.dto.ts
+############################################################
+
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsString,
+  IsEnum,
+  IsNumber,
+  Min,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ServiceCategory } from '@prisma/client';
+
+export class CreateServiceDto {
+  @ApiProperty({ example: 'Full Synthetic Oil Change' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'Includes filter replacement and 5L of oil' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ enum: ServiceCategory, example: ServiceCategory.FLUIDS })
+  @IsEnum(ServiceCategory)
+  category!: ServiceCategory;
+
+  @ApiProperty({ example: 50.0, description: 'Base price of the service' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Type(() => Number)
+  basePrice!: number;
+
+  @ApiProperty({ example: 45, description: 'Duration in minutes' })
+  @IsNumber()
+  @Min(15)
+  @Type(() => Number)
+  durationMinutes!: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\dto\service-response.dto.ts
+############################################################
+
+import { Expose, Transform } from 'class-transformer';
+import { ServiceCategory, Prisma } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class ServiceResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  name!: string;
+
+  @Expose()
+  description?: string | null;
+
+  @Expose()
+  category!: ServiceCategory;
+
+  @ApiProperty({ type: Number, example: 50.0 })
+  @Expose()
+  @Transform(({ value }) =>
+    value instanceof Prisma.Decimal ? value.toNumber() : (value as number),
+  )
+  basePrice!: number | Prisma.Decimal;
+
+  @Expose()
+  durationMinutes!: number;
+
+  @Expose()
+  isActive?: boolean;
+
+  @Expose()
+  createdAt!: Date;
+
+  constructor(
+    partial:
+      | Partial<ServiceResponseDto>
+      | { basePrice?: number | Prisma.Decimal },
+  ) {
+    Object.assign(this, partial);
+    if (this.basePrice instanceof Prisma.Decimal) {
+      this.basePrice = this.basePrice.toNumber();
+    }
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\dto\update-service.dto.ts
+############################################################
+
+import { PartialType } from '@nestjs/swagger';
+import { CreateServiceDto } from './create-service.dto';
+
+export class UpdateServiceDto extends PartialType(CreateServiceDto) {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\interfaces\services.repository.interface.ts
+############################################################
+
+import { Service, ServiceCategory } from '@prisma/client';
+import { CreateServiceDto } from '../dto/create-service.dto';
+import { UpdateServiceDto } from '../dto/update-service.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+export const SERVICES_REPOSITORY = 'SERVICES_REPOSITORY';
+
+export interface IServicesRepository {
+  create(data: CreateServiceDto): Promise<Service>;
+  findAll(
+    pagination: PaginationDto,
+    category?: ServiceCategory,
+    activeOnly?: boolean,
+  ): Promise<Service[]>;
+  findById(id: string): Promise<Service | null>;
+  findByName(name: string): Promise<Service | null>;
+  update(id: string, data: UpdateServiceDto): Promise<Service>;
+  delete(id: string): Promise<void>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\services\repositories\services.prisma.repository.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { IServicesRepository } from '../interfaces/services.repository.interface';
+import { PrismaService } from '../../prisma/prisma.service';
+import { Service, ServiceCategory } from '@prisma/client';
+import { CreateServiceDto } from '../dto/create-service.dto';
+import { UpdateServiceDto } from '../dto/update-service.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+@Injectable()
+export class ServicesPrismaRepository implements IServicesRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(data: CreateServiceDto): Promise<Service> {
+    return this.prisma.service.create({ data });
+  }
+
+  async findAll(
+    pagination: PaginationDto,
+    category?: ServiceCategory,
+    activeOnly: boolean = true,
+  ): Promise<Service[]> {
+    const { skip = 0, take = 20 } = pagination;
+    const where: { category?: ServiceCategory; isActive?: boolean } = {};
+    if (category) where.category = category;
+    if (activeOnly) where.isActive = true;
+
+    return this.prisma.service.findMany({
+      skip,
+      take,
+      where,
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async findById(id: string): Promise<Service | null> {
+    return this.prisma.service.findUnique({ where: { id } });
+  }
+
+  async findByName(name: string): Promise<Service | null> {
+    return this.prisma.service.findFirst({ where: { name } });
+  }
+
+  async update(id: string, data: UpdateServiceDto): Promise<Service> {
+    return this.prisma.service.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.service.delete({ where: { id } });
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\users.controller.ts
+############################################################
+
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Query,
+  Req,
+  NotFoundException, // <--- Added this import
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UserResponseDto } from './dto/user-response.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
+import { Request } from 'express';
+import { AuthUser } from '../auth/types/auth-user.type';
+
+@ApiTags('Users')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create a new user (Admin only)' })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  async create(@Body() createUserDto: CreateUserDto) {
+    const user = await this.usersService.create(createUserDto);
+    return new UserResponseDto(user);
+  }
+
+  @Get()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'List all users' })
+  @ApiQuery({ name: 'role', enum: UserRole, required: false })
+  async findAll(@Query('role') role?: UserRole) {
+    const users = await this.usersService.findAll(role);
+    return users.map((user) => new UserResponseDto(user));
+  }
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get current user profile' })
+  async getProfile(@Req() req: Request & { user: AuthUser }) {
+    const user = await this.usersService.findOne(req.user.userId);
+    // FIX 1: Handle null case
+    if (!user) throw new NotFoundException('Profile not found');
+    return new UserResponseDto(user);
+  }
+
+  @Get(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get any user details (Admin)' })
+  async findOne(@Param('id') id: string) {
+    const user = await this.usersService.findOne(id);
+    // FIX 2: Handle null case
+    if (!user) throw new NotFoundException('User not found');
+    return new UserResponseDto(user);
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update my profile' })
+  async updateProfile(
+    @Req() req: Request & { user: AuthUser },
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    const user = await this.usersService.update(req.user.userId, updateUserDto);
+    return new UserResponseDto(user);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update any user (Admin)' })
+  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+    const user = await this.usersService.update(id, updateUserDto);
+    return new UserResponseDto(user);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete a user' })
+  async remove(@Param('id') id: string) {
+    return this.usersService.remove(id);
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\users.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { UsersService } from './users.service';
+import { UsersController } from './users.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { USERS_REPOSITORY } from './interfaces/users.repository.interface';
+import { UsersPrismaRepository } from './repositories/users.prisma.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [UsersController],
+  providers: [
+    UsersService,
+    {
+      provide: USERS_REPOSITORY,
+      useClass: UsersPrismaRepository,
+    },
+  ],
+  exports: [UsersService],
+})
+export class UsersModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\users.service.ts
+############################################################
+
+// src/users/users.service.ts
+import { Injectable, ConflictException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { User, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { SignupDto } from '../auth/dto/auth.dto';
+import { UpdateUserDto } from './dto/update-user.dto'; // Make sure this is imported
+
+@Injectable()
+export class UsersService {
+  constructor(private prisma: PrismaService) {}
+
+  async create(dto: SignupDto): Promise<User> {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (existingUser) throw new ConflictException('Email already in use');
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    if (dto.organizationName) {
+      return this.createCorporateUser(dto, hashedPassword);
+    } else {
+      return this.createNormalUser(dto, hashedPassword);
+    }
+  }
+
+  private async createNormalUser(dto: SignupDto, hash: string) {
+    return this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hash,
+        name: dto.name,
+        // FIX: Convert undefined to null
+        phone: dto.phone ?? null, 
+        role: UserRole.USER,
+      },
+    });
+  }
+
+  private async createCorporateUser(dto: SignupDto, hash: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name: dto.organizationName!,
+          // FIX: Convert undefined to null
+          taxId: dto.taxId ?? null, 
+        },
+      });
+
+      return tx.user.create({
+        data: {
+          email: dto.email,
+          password: hash,
+          name: dto.name,
+          // FIX: Convert undefined to null
+          phone: dto.phone ?? null,
+          role: UserRole.ACCOUNT_MANAGER,
+          organizationId: org.id,
+        },
+      });
+    });
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: { organization: true },
+    });
+  }
+
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+  async findAll(role?: UserRole) {
+    if (role) {
+      return this.prisma.user.findMany({ where: { role } });
+    }
+    return this.prisma.user.findMany();
+  }
+
+  async findOne(id: string) {
+    return this.findById(id);
+  }
+
+async update(id: string, dto: UpdateUserDto) {
+    return this.prisma.user.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async remove(id: string) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
+  }
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\dto\create-user.dto.ts
+############################################################
+
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+} from 'class-validator';
+import { UserRole } from '@prisma/client';
+
+export class CreateUserDto {
+  @ApiProperty({ example: 'john.doe@example.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @ApiProperty({ example: 'SecureP@ss123' })
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password!: string;
+
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiPropertyOptional({ example: '+201000000000' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @ApiPropertyOptional({ example: '123 Main St, Cairo' })
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @ApiPropertyOptional({ example: 'Cairo' })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'Egypt' })
+  @IsString()
+  @IsOptional()
+  country?: string;
+
+  @ApiPropertyOptional({ enum: UserRole, default: UserRole.USER })
+  @IsEnum(UserRole)
+  @IsOptional()
+  role?: UserRole;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\dto\update-user.dto.ts
+############################################################
+
+import { PartialType, OmitType } from '@nestjs/swagger';
+import { CreateUserDto } from './create-user.dto';
+
+export class UpdateUserDto extends PartialType(
+  OmitType(CreateUserDto, ['password', 'role'] as const),
+) {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\dto\user-response.dto.ts
+############################################################
+
+import { Expose } from 'class-transformer';
+import { UserRole } from '@prisma/client';
+
+export class UserResponseDto {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  email!: string;
+
+  @Expose()
+  name!: string;
+
+  @Expose()
+  phone!: string | null;
+
+  @Expose()
+  address!: string | null;
+
+  @Expose()
+  city!: string | null;
+
+  @Expose()
+  country!: string | null;
+
+  @Expose()
+  role!: UserRole;
+
+  @Expose()
+  createdAt!: Date;
+
+  constructor(partial: Partial<UserResponseDto>) {
+    Object.assign(this, partial);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\interfaces\users.repository.interface.ts
+############################################################
+
+import { User, UserRole } from '@prisma/client';
+import { CreateUserDto } from '../dto/create-user.dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
+
+export const USERS_REPOSITORY = 'USERS_REPOSITORY';
+
+export interface IUsersRepository {
+  create(data: CreateUserDto): Promise<User>;
+  findAll(role?: UserRole): Promise<User[]>;
+  findById(id: string): Promise<User | null>;
+  findByEmail(email: string): Promise<User | null>;
+  update(id: string, data: UpdateUserDto): Promise<User>;
+  delete(id: string): Promise<void>;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\users\repositories\users.prisma.repository.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import { IUsersRepository } from '../interfaces/users.repository.interface';
+import { PrismaService } from '../../prisma/prisma.service';
+import { User, UserRole } from '@prisma/client';
+import { CreateUserDto } from '../dto/create-user.dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
+
+@Injectable()
+export class UsersPrismaRepository implements IUsersRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(data: CreateUserDto): Promise<User> {
+    return this.prisma.user.create({ data });
+  }
+
+  async findAll(role?: UserRole): Promise<User[]> {
+    const where = role ? { role } : {};
+    return this.prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  async update(id: string, data: UpdateUserDto): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.user.delete({ where: { id } });
+  }
+}
+
+
+******************** END OF FILE ********************

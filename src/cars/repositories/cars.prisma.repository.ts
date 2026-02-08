@@ -40,16 +40,11 @@ export class CarsPrismaRepository implements ICarsRepository {
 
   async findByIdentifier(identifier: {
     plateNumber?: string;
-    vin?: string;
   }): Promise<Car | null> {
     const orConditions: any[] = [];
 
     if (identifier.plateNumber) {
       orConditions.push({ plateNumber: identifier.plateNumber });
-    }
-
-    if (identifier.vin) {
-      orConditions.push({ vin: identifier.vin });
     }
 
     if (orConditions.length === 0) {

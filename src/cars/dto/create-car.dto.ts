@@ -20,10 +20,5 @@ export class CreateCarDto {
 
   @IsNotEmpty()
   @IsString()
-  @Length(17, 17, { message: 'VIN must be exactly 17 characters' })
-  vin!: string;
-
-  @IsNotEmpty()
-  @IsString()
   plateNumber!: string;
 }

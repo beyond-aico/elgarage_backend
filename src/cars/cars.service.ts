@@ -55,7 +55,7 @@ export class CarsService {
       where: { userId },
     });
 
-    if (currentCount >= 2) {
+    if (currentCount >= 10) {
       throw new ForbiddenException(
         'Free accounts are limited to 2 vehicles. Please upgrade.',
       );

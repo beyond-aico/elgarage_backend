@@ -73,7 +73,6 @@ CREATE TABLE "Car" (
     "modelId" TEXT NOT NULL,
     "year" INTEGER NOT NULL,
     "mileageKm" INTEGER NOT NULL,
-    "vin" TEXT,
     "plateNumber" TEXT NOT NULL,
     "color" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

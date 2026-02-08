@@ -1,0 +1,797 @@
+--- BACKEND PROJECT FULL DUMP ---
+Generated on: 2026-02-07
+============================================================
+
+
+############################################################
+PATH: .\collect_code.py
+############################################################
+
+import os
+
+# ================= إعدادات السكريبت للباك إند (NestJS, Node, Docker) =================
+
+output_filename = "backend_full_code_dump.txt"
+
+# 1. الامتدادات البرمجية الشاملة
+included_extensions = [
+    # Logic & Languages
+    '.ts', '.js', '.py', '.php', '.go', '.rs', '.java',
+    
+    # Config & Environment
+    '.json', '.yaml', '.yml', '.env', '.env.example', '.toml',
+    
+    # Database & ORM
+    '.sql', '.prisma', '.db', '.entity.ts', '.dto.ts', '.schema.ts',
+    
+    # Infrastructure & DevOps
+    '.dockerignore', '.gitignore',
+    
+    # Documentation
+    '.md', '.txt'
+]
+
+# 2. ملفات محددة بالاسم (Files without unique extensions)
+included_filenames = {
+    'Dockerfile', 'docker-compose.yml', 'Caddyfile', 'Makefile', 
+    'Procfile', 'nest-cli.json', 'tsconfig.json', 'package.json'
+}
+
+# 3. مجلدات يجب تجاهلها (عشان الكود ميطلعش ملايين السطور)
+ignored_dirs = {
+    'node_modules', 'dist', 'build', 'venv', '.git', '.idea', 
+    '__pycache__', 'coverage', 'tmp', 'logs', 'uploads', 
+    'migrations', '.next', 'out', 'bin', 'obj'
+}
+
+# ================= بداية التنفيذ =================
+
+def collect_backend_files():
+    print(f"🚀 Starting to aggregate Backend Code...")
+    count = 0
+    
+    with open(output_filename, 'w', encoding='utf-8') as outfile:
+        outfile.write(f"--- BACKEND PROJECT FULL DUMP ---\n")
+        outfile.write(f"Generated on: 2026-02-07\n")
+        outfile.write("="*60 + "\n\n")
+
+        for root, dirs, files in os.walk("."):
+            # (1) تصفية المجلدات المستبعدة
+            dirs[:] = [d for d in dirs if d not in ignored_dirs and not d.startswith('.')]
+            
+            for file in files:
+                # (2) تجاهل ملفات القفل (Lock files) لأنها طويلة جداً وغير مفيدة
+                if 'lock' in file.lower():
+                    continue
+                
+                # (3) التحقق من الامتداد أو اسم الملف
+                is_target = any(file.endswith(ext) for ext in included_extensions) or file in included_filenames
+                
+                if is_target:
+                    file_path = os.path.join(root, file)
+                    
+                    # تخطي ملف المخرج نفسه
+                    if file == output_filename:
+                        continue
+
+                    print(f"📦 Adding: {file_path}")
+
+                    outfile.write(f"\n{'#'*60}\n")
+                    outfile.write(f"PATH: {file_path}\n")
+                    outfile.write(f"{'#'*60}\n\n")
+
+                    try:
+                        # استخدام errors='ignore' لتخطي الرموز الغريبة في ملفات الـ binary إن وجدت
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as infile:
+                            outfile.write(infile.read())
+                            count += 1
+                    except Exception as e:
+                        outfile.write(f"\n[⚠️ Skipped due to error: {e}]\n")
+                    
+                    outfile.write(f"\n\n{'*'*20} END OF FILE {'*'*20}\n")
+
+    print(f"\n✅ Success! {count} files were collected into: {output_filename}")
+
+if __name__ == "__main__":
+    collect_backend_files()
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\prisma.mock.ts
+############################################################
+
+export const prismaMock = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+  order: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+  },
+  inventoryItem: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+};
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\schema.prisma
+############################################################
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================
+// ENUMS
+// =========================
+
+enum UserRole {
+  USER            // B2C Customer
+  ADMIN           // System Admin
+  ACCOUNT_MANAGER // [NEW] B2B Manager
+  DRIVER          // [NEW] B2B Driver
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceCategory {
+  FLUIDS        // Oil, Coolant, Brake Fluid, Transmission Fluid, AdBlue
+  FILTERS       // Air, Cabin, Fuel, Oil Filters
+  BRAKES        // Pads, Discs, Calipers, ABS
+  IGNITION      // Spark Plugs, Coils, Glow Plugs (Diesel)
+  ENGINE        // Belts, Chains, Mounts, Gaskets, Turbo
+  SUSPENSION    // Shocks, Struts, Control Arms, Steering
+  WHEELS_TIRES  // Tires, Alignment, Rotation, Balancing
+  ELECTRICAL    // Battery, Alternator, Lights, Sensors
+  AC_HEATING    // Compressor, Gas refill
+  BODY          // Wipers, Glass, Bumpers
+  INSPECTION    // General checkups, Computer Diagnostics
+  OTHER         // Anything else
+}
+
+// =========================
+// ORGANIZATIONS (B2B LAYER) [NEW]
+// =========================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  taxId     String?  // For business invoicing
+  address   String?
+  
+  members   User[]   @relation("OrgMembers")
+  fleet     Car[]    @relation("OrgFleet")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// =========================
+// AUTH & USERS
+// =========================
+
+model User {
+  id       String   @id @default(uuid())
+  email    String   @unique
+  password String
+  name     String
+  
+  phone    String?
+  address  String?
+  city     String?
+  country  String?  @default("Egypt")
+  
+  role     UserRole @default(USER)
+
+  // [NEW] Corporate Linking
+  organizationId String?
+  organization   Organization? @relation("OrgMembers", fields: [organizationId], references: [id])
+  
+  cars         Car[]           @relation("PersonalCars") // [MODIFIED] Explicit relation name
+  orders       Order[]
+  refreshToken RefreshToken? 
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+}
+
+// =========================
+// CARS
+// =========================
+
+model CarBrand {
+  id     String   @id @default(uuid())
+  name   String   @unique
+  models CarModel[]
+}
+
+model CarModel {
+  id      String   @id @default(uuid())
+  name    String
+  brandId String
+  brand   CarBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  
+  // [NEW] Engine Code is crucial for parts compatibility (e.g., 1.6L vs 2.0L)
+  engineCode String? 
+
+  cars    Car[]
+
+  // [NEW] The "Smart" Links
+  compatibleParts  Part[]            // Parts that fit this model
+  maintenanceRules MaintenanceRule[] // Rules specific to this model
+
+  @@unique([name, brandId])
+}
+
+model Car {
+  id          String @id @default(uuid())
+  
+  // Ownership: Can be Personal (User) OR Corporate (Organization)
+  userId      String? // [MODIFIED] Made optional to allow Org ownership
+  user        User?   @relation("PersonalCars", fields: [userId], references: [id], onDelete: Cascade)
+  
+  organizationId String? // [NEW]
+  organization   Organization? @relation("OrgFleet", fields: [organizationId], references: [id])
+
+  modelId     String
+  model       CarModel @relation(fields: [modelId], references: [id])
+  
+  year        Int
+  mileageKm   Int
+  vin         String?   @unique 
+  plateNumber String    @unique 
+  color       String
+
+  maintenanceRecords MaintenanceRecord[]
+  orders             Order[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// =========================
+// MAINTENANCE RULES (THE DNA)
+// =========================
+
+model MaintenanceRule {
+  id             String   @id @default(uuid())
+  
+  // [MODIFIED] The Link is now: Service + CarModel = Interval
+  serviceId      String
+  service        Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // [NEW] The specific model this rule applies to
+  modelId        String   
+  model          CarModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  
+  intervalKm     Int?     // e.g. Every 10,000 km
+  intervalMonths Int?     // e.g. Every 6 months
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt 
+
+  // [MODIFIED] Unique constraint now includes modelId. 
+  // Allow "Oil Change" for "Toyota" AND "Oil Change" for "BMW"
+  @@unique([serviceId, modelId]) 
+}
+
+model MaintenanceRecord {
+  id          String   @id @default(uuid())
+  carId       String
+  
+  serviceId   String
+  service     Service  @relation(fields: [serviceId], references: [id])
+  
+  mileageKm   Int      // Mileage at time of service
+  notes       String?  // Mechanic notes
+  performedAt DateTime @default(now())
+
+  car         Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([carId])
+  @@index([serviceId])
+}
+
+// =========================
+// INVENTORY & SERVICES
+// =========================
+
+model Part {
+  id                String   @id @default(uuid())
+  name              String
+  sku               String   @unique 
+  description       String?
+  
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  price             Decimal  @db.Decimal(10, 2)
+  location          String?  
+
+  // [NEW] Smart Inventory Link
+  compatibleModels  CarModel[]
+
+  orderItems        OrderItem[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Service {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  category        ServiceCategory
+  basePrice       Decimal  @db.Decimal(10, 2)
+  durationMinutes Int      @default(60)
+  isActive        Boolean  @default(true)
+  
+  orderItems      OrderItem[]
+
+  maintenanceRules   MaintenanceRule[]
+  maintenanceRecords MaintenanceRecord[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// =========================
+// ORDERS
+// =========================
+
+model Order {
+  id         String      @id @default(uuid())
+  userId     String
+  carId      String
+  status     OrderStatus @default(PENDING)
+  totalPrice Decimal     @db.Decimal(10, 2)
+
+  user       User        @relation(fields: [userId], references: [id])
+  car        Car         @relation(fields: [carId], references: [id])
+  items      OrderItem[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  
+  partId    String?
+  serviceId String?
+  
+  quantity  Int
+  price     Decimal  @db.Decimal(10, 2) 
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  part      Part?    @relation(fields: [partId], references: [id])
+  service   Service? @relation(fields: [serviceId], references: [id])
+}
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\seed-data.ts
+############################################################
+
+// prisma/seed-data.ts
+
+export const SERVICES = [
+  { name: 'Engine Oil Change', category: 'FLUIDS', price: 600 },
+  { name: 'Oil Filter Replacement', category: 'FILTERS', price: 250 },
+  { name: 'Fuel Filter Replacement', category: 'FILTERS', price: 400 },
+  { name: 'Air Filter Replacement', category: 'FILTERS', price: 300 },
+  { name: 'Pollen (Cabin) Filter', category: 'FILTERS', price: 350 },
+  { name: 'Spark Plugs Replacement', category: 'IGNITION', price: 1200 },
+  { name: 'Coolant Fluid Change', category: 'FLUIDS', price: 450 },
+  { name: 'Gearbox Oil Change', category: 'FLUIDS', price: 1500 },
+  { name: 'Drive Belt Replacement', category: 'ENGINE', price: 2200 },
+  { name: 'Timing Belt Replacement', category: 'ENGINE', price: 3500 },
+  { name: 'Power Steering Oil Change', category: 'FLUIDS', price: 500 },
+  { name: 'Brake Fluid Change', category: 'FLUIDS', price: 600 }, // NEW
+];
+
+const S = {
+  Oil: 'Engine Oil Change',
+  OilFilter: 'Oil Filter Replacement',
+  Fuel: 'Fuel Filter Replacement',
+  Air: 'Air Filter Replacement',
+  Pollen: 'Pollen (Cabin) Filter',
+  Plugs: 'Spark Plugs Replacement',
+  Coolant: 'Coolant Fluid Change',
+  Gearbox: 'Gearbox Oil Change',
+  DriveBelt: 'Drive Belt Replacement',
+  TimingBelt: 'Timing Belt Replacement',
+  Steering: 'Power Steering Oil Change',
+  BrakeFluid: 'Brake Fluid Change', // Helper alias
+};
+
+// Data Structure: Brand -> Model -> { engine, rules: { km: [ServiceList] } }
+export const CAR_DATA: any = {
+  Opel: {
+    'Grandland X': { engine: '1.6 Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Fuel, S.Air, S.Pollen], 30000: [S.Plugs], 40000: [S.Coolant], 60000: [S.Gearbox], 90000: [S.DriveBelt]
+    }},
+    'Astra J': { engine: '1.6L', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Fuel, S.Air, S.Pollen], 40000: [S.Coolant], 60000: [S.Plugs, S.Gearbox, S.DriveBelt, S.TimingBelt]
+    }},
+  },
+  Kia: {
+    'Cerato K3': { engine: '1.6 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.Coolant, S.DriveBelt], 60000: [S.Gearbox]
+    }},
+    'Sportage GDI': { engine: '1.6 GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Coolant], 60000: [S.Plugs, S.DriveBelt, S.Gearbox]
+    }},
+    'Sportage NQ5': { engine: '1.6 Turbo GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Coolant], 60000: [S.Plugs, S.DriveBelt], 100000: [S.Gearbox]
+    }},
+    'Picanto': { engine: '1.2 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+    'Rio': { engine: '1.4 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+  },
+  Hyundai: {
+    'Elantra AD': { engine: '1.6 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Fuel, S.Coolant], 60000: [S.DriveBelt, S.Gearbox]
+    }},
+    'Tucson GDI': { engine: '1.6 GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Coolant], 60000: [S.Plugs, S.DriveBelt, S.Gearbox]
+    }},
+    'Tucson NX4': { engine: '1.6 Turbo GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Coolant], 60000: [S.Plugs, S.DriveBelt], 100000: [S.Gearbox]
+    }},
+    'Elantra HD': { engine: '1.6 Gamma', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Fuel, S.Coolant, S.Gearbox], 60000: [S.DriveBelt]
+    }},
+    'IX35': { engine: '1.6 GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Fuel, S.Coolant], 60000: [S.DriveBelt, S.Gearbox]
+    }},
+    'Elantra CN7': { engine: '1.6 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Fuel, S.Coolant], 60000: [S.DriveBelt, S.Gearbox]
+    }},
+    'i10': { engine: '1.2 Kappa', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Fuel, S.Coolant, S.Gearbox], 60000: [S.DriveBelt]
+    }},
+  },
+  MG: {
+    'MG 5': { engine: '1.5L', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel], 60000: [S.Plugs, S.Gearbox], 80000: [S.Coolant], 100000: [S.DriveBelt]
+    }},
+    'MG 6': { engine: '1.5 Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs], 60000: [S.Gearbox], 80000: [S.Coolant], 100000: [S.DriveBelt]
+    }},
+    'MG HS': { engine: '1.5 Turbo GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs], 60000: [S.Gearbox], 80000: [S.Coolant], 100000: [S.DriveBelt]
+    }},
+    'MG RX5': { engine: '1.5 Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs], 60000: [S.Gearbox], 80000: [S.Coolant], 100000: [S.DriveBelt]
+    }},
+  },
+  Skoda: {
+    'Octavia A7': { engine: '1.6 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 60000: [S.Fuel, S.Plugs, S.DriveBelt, S.TimingBelt, S.Coolant, S.Gearbox]
+    }},
+    'Octavia A8': { engine: '1.4 TSI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Pollen], 30000: [S.Air, S.Plugs], 50000: [S.DriveBelt, S.Gearbox], 60000: [S.Fuel, S.Coolant], 100000: [S.TimingBelt]
+    }},
+    'Kodiaq': { engine: '1.4 TSI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Pollen], 30000: [S.Air, S.Plugs], 50000: [S.Gearbox], 60000: [S.Fuel, S.Coolant], 100000: [S.DriveBelt, S.TimingBelt]
+    }},
+  },
+  Nissan: {
+    'Sunny N17': { engine: '1.5L', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 30000: [S.Fuel], 40000: [S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+    'Sentra': { engine: '1.6L', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 30000: [S.Fuel], 40000: [S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+    'Qashqai J11': { engine: '1.2 Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+  },
+  Fiat: {
+    'Tipo Automatic': { engine: '1.6 E-Torq', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Fuel], 40000: [S.Plugs], 50000: [S.DriveBelt], 60000: [S.Gearbox], 80000: [S.Coolant]
+    }},
+    'Tipo Manual': { engine: '1.4 Fire', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Fuel], 40000: [S.Plugs], 60000: [S.DriveBelt, S.TimingBelt], 80000: [S.Coolant], 100000: [S.Gearbox]
+    }},
+    '500x': { engine: '1.4 MultiAir', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Fuel], 30000: [S.Plugs], 60000: [S.DriveBelt, S.TimingBelt, S.Gearbox], 80000: [S.Coolant]
+    }},
+  },
+  Jeep: {
+    'Renegade': { engine: '1.4 MultiAir', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Fuel], 30000: [S.Plugs], 60000: [S.DriveBelt, S.TimingBelt, S.Gearbox], 80000: [S.Coolant]
+    }},
+  },
+  Seat: {
+    'Ibiza': { engine: '1.6 MPI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.DriveBelt], 50000: [S.Gearbox], 60000: [S.Fuel, S.Plugs, S.TimingBelt, S.Coolant]
+    }},
+  },
+  Mitsubishi: {
+    'Lancer EX': { engine: '1.6 MIVEC', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+    'Eclipse Cross': { engine: '1.5L Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Pollen, S.DriveBelt, S.Gearbox], 50000: [S.Fuel, S.Coolant], 80000: [S.Plugs]
+    }},
+  },
+  Citroen: {
+    'C-Elysée': { engine: '1.6 VTi', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Coolant], 60000: [S.DriveBelt, S.TimingBelt, S.Gearbox]
+    }},
+    'C5 Aircross': { engine: '1.6 Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs], 60000: [S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+    'C4 Picasso': { engine: '1.6 THP', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs], 60000: [S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+  },
+  Peugeot: {
+    '301 (4-Gear)': { engine: '1.6 VTi (4AT)', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Coolant, S.Gearbox], 60000: [S.TimingBelt, S.DriveBelt]
+    }},
+    '301 (6-Gear)': { engine: '1.6 VTi (6AT)', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen, S.Plugs], 40000: [S.Coolant], 60000: [S.TimingBelt, S.DriveBelt, S.Gearbox]
+    }},
+    '3008': { engine: '1.6 THP', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Plugs], 60000: [S.DriveBelt, S.Gearbox, S.Coolant]
+    }},
+    '5008': { engine: '1.6 THP', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Plugs], 60000: [S.DriveBelt, S.Gearbox, S.Coolant]
+    }},
+    '508': { engine: '1.6 THP', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air], 40000: [S.Fuel, S.Pollen, S.Plugs], 60000: [S.DriveBelt, S.Gearbox, S.Coolant]
+    }},
+  },
+  Chery: {
+    'Arrizo 5 Manual': { engine: '1.5L DVVT', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Fuel, S.Air, S.Pollen], 30000: [S.Gearbox], 40000: [S.Plugs, S.DriveBelt, S.Coolant], 60000: [S.Steering]
+    }},
+    'Arrizo 5 CVT': { engine: '1.5L DVVT', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Fuel, S.Air, S.Pollen], 40000: [S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox], 60000: [S.Steering]
+    }},
+    'Tiggo 3': { engine: '1.6L DVVT', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Fuel, S.Air], 40000: [S.Pollen, S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+    'Tiggo 7': { engine: '1.5 Turbo', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Fuel, S.Air, S.Pollen], 40000: [S.Plugs, S.Coolant], 50000: [S.DriveBelt], 100000: [S.Gearbox]
+    }},
+  },
+  Jetour: {
+    'X70': { engine: '1.5T', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.Coolant], 60000: [S.Gearbox, S.DriveBelt]
+    }},
+    'X70 Plus': { engine: '1.6T GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.Coolant], 60000: [S.Gearbox, S.DriveBelt]
+    }},
+    'X90': { engine: '1.6T GDI', rules: {
+      10000: [S.Oil, S.OilFilter], 20000: [S.Air, S.Pollen], 40000: [S.Fuel, S.Plugs, S.Coolant], 60000: [S.Gearbox, S.DriveBelt]
+    }},
+  },
+  Toyota: {
+    'Corolla (2014-2025)': { engine: '1.6L VVT-i', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air],
+      40000: [S.Fuel, S.Pollen, S.Plugs, S.DriveBelt, S.Coolant, S.Gearbox]
+    }},
+},
+Chevrolet: {
+    'New Optra': { engine: '1.5L', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Fuel, S.Air, S.Pollen],
+      30000: [S.Plugs, S.Coolant],
+      50000: [S.Gearbox],
+      60000: [S.DriveBelt]
+    }},
+    'Captiva (New Shape)': { engine: '1.5L Turbo', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Fuel, S.Air],
+      30000: [S.Pollen, S.Plugs, S.Coolant],
+      60000: [S.DriveBelt],
+      100000: [S.Gearbox]
+    }},
+  
+  },
+  Renault: {
+    'Logan AT': { engine: '1.6L MPI', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air, S.Pollen, S.Fuel, S.Plugs], // Heavy 20k service
+      40000: [S.Coolant],
+      60000: [S.TimingBelt, S.DriveBelt, S.Gearbox]
+    }},
+    'Sandero AT': { engine: '1.6L MPI', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air, S.Pollen, S.Fuel, S.Plugs],
+      40000: [S.Coolant],
+      60000: [S.TimingBelt, S.DriveBelt, S.Gearbox]
+    }},
+    'Duster AT': { engine: '1.6L MPI', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air, S.Pollen, S.Fuel, S.Plugs],
+      40000: [S.Coolant],
+      60000: [S.TimingBelt, S.DriveBelt, S.Gearbox]
+    }},
+  'Megane 4 1.6': { engine: '1.6 SCe', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air, S.Pollen],
+      40000: [S.Gearbox],
+      60000: [S.Plugs, S.DriveBelt, S.Coolant]
+    }},
+    'Megane 1.2 Turbo': { engine: '1.2 TCe', rules: {
+      8000: [S.Oil, S.OilFilter],
+      16000: [S.Air, S.Pollen],
+      56000: [S.Plugs],
+      64000: [S.DriveBelt, S.Coolant]
+    }},
+    'Kadjar': { engine: '1.2 TCe', rules: {
+      8000: [S.Oil, S.OilFilter],
+      16000: [S.Air, S.Pollen],
+      56000: [S.Plugs],
+      64000: [S.DriveBelt, S.Coolant]
+    }},
+  },
+  Subaru: {
+    'XV': { engine: '1.6L Boxer', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air, S.Pollen],
+      40000: [S.Fuel, S.Coolant, S.Gearbox],
+      60000: [S.Plugs, S.DriveBelt, S.BrakeFluid]
+    }},
+    'Impreza': { engine: '1.6L Boxer', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air, S.Pollen],
+      40000: [S.Fuel, S.Coolant, S.Gearbox],
+      60000: [S.Plugs, S.DriveBelt, S.BrakeFluid]
+    }},
+  },
+  Mazda: {
+    '3': { engine: '1.6L SkyActiv', rules: {
+      10000: [S.Oil, S.OilFilter],
+      20000: [S.Air],
+      30000: [S.Fuel, S.Pollen, S.Plugs], // Distinct 30k cycle
+      40000: [S.Gearbox],
+      60000: [S.DriveBelt, S.Coolant, S.BrakeFluid]
+    }},
+  }
+
+};
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\seed.ts
+############################################################
+
+// prisma/seed.ts
+import { PrismaClient, UserRole, ServiceCategory } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { CAR_DATA, SERVICES } from './seed-data';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('🌱 Starting Data-Driven Seed...');
+
+  // 1. CLEANUP
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.maintenanceRecord.deleteMany();
+  await prisma.maintenanceRule.deleteMany();
+  await prisma.part.deleteMany();
+  await prisma.car.deleteMany();
+  await prisma.carModel.deleteMany();
+  await prisma.carBrand.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.organization.deleteMany();
+  await prisma.service.deleteMany();
+
+  // 2. CREATE SERVICES
+  const serviceMap: Record<string, string> = {};
+  for (const s of SERVICES) {
+    const created = await prisma.service.create({
+      data: { name: s.name, category: s.category as ServiceCategory, basePrice: s.price }
+    });
+    serviceMap[s.name] = created.id;
+  }
+  console.log('✅ Services created');
+
+  // 3. CREATE CARS & RULES
+  for (const brandName of Object.keys(CAR_DATA)) {
+    const brand = await prisma.carBrand.create({ data: { name: brandName } });
+    const models = CAR_DATA[brandName];
+
+    for (const modelName of Object.keys(models)) {
+      const modelData = models[modelName];
+      
+      const model = await prisma.carModel.create({
+        data: { name: modelName, brandId: brand.id, engineCode: modelData.engine },
+      });
+
+      // Apply Rules
+      const rules = modelData.rules;
+      for (const kmStr of Object.keys(rules)) {
+        const km = parseInt(kmStr);
+        const serviceNames = rules[kmStr]; // Array of service names
+
+        for (const sName of serviceNames) {
+          const serviceId = serviceMap[sName];
+          if (serviceId) {
+            await prisma.maintenanceRule.create({
+              data: { modelId: model.id, serviceId, intervalKm: km }
+            });
+          } else {
+            console.warn(`⚠️ Warning: Service '${sName}' not found for ${brandName} ${modelName}`);
+          }
+        }
+      }
+    }
+  }
+  console.log(`✅ All ${Object.keys(CAR_DATA).length} Brands and Models created successfully.`);
+
+  // 4. CREATE USERS
+  const hashedPassword = await bcrypt.hash('password123', 10);
+  
+  const vodafone = await prisma.organization.create({
+    data: { name: 'Vodafone Fleet Egypt', taxId: 'TAX-EG-VODA' }
+  });
+
+  const hq = await prisma.organization.create({
+    data: { name: 'Auto Mentor HQ', taxId: 'TAX-EG-HQ' }
+  });
+
+  await prisma.user.create({
+    data: { email: 'manager@vodafone.com', password: hashedPassword, name: 'Ahmed Manager', role: UserRole.ACCOUNT_MANAGER, organizationId: vodafone.id }
+  });
+
+  await prisma.user.create({
+    data: { email: 'admin@automentor.com', password: hashedPassword, name: 'System Administrator', role: UserRole.ADMIN, organizationId: hq.id }
+  });
+
+  console.log('✅ Users seeded');
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+
+******************** END OF FILE ********************
