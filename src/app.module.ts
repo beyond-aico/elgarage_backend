@@ -13,6 +13,10 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { QueueModule } from './common/queues/queue.module';
 import { AdminModule } from './admin/admin.module';
 
+// لا تنسى استيراد الـ AppController والـ AppService
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
 const moduleMetadata: ModuleMetadata = {
   imports: [
     PrismaModule,
@@ -33,9 +37,7 @@ const moduleMetadata: ModuleMetadata = {
     LoggerModule.forRoot({
       pinoHttp:
         process.env.NODE_ENV === 'production'
-          ? {
-              level: 'info',
-            }
+          ? { level: 'info' }
           : {
               level: 'debug',
               transport: {
@@ -49,6 +51,9 @@ const moduleMetadata: ModuleMetadata = {
             },
     }),
   ],
+  // الضبط الناقص اللي كان موقف الدنيا:
+  controllers: [AppController],
+  providers: [AppService],
 };
 
 @Module(moduleMetadata)
