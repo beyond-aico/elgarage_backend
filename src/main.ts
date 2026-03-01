@@ -54,13 +54,13 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  const port = configService.get<number>('PORT', 3000);
-  await app.listen(port,'0.0.0.0');
+// قراءة البورت مباشرة من البيئة لضمان التوافق مع ريل واي
+  const port = process.env.PORT || 3000;
   
-  const url = await app.getUrl();
-  console.log(`🚀 Server is clearly listening on 0.0.0.0:${port}`);
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`🚀 Server is listening on port: ${port}`);
   logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);}
-
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
 });
