@@ -23,16 +23,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let error = 'Internal Server Error';
 
-    // 1. Handle NestJS HttpExceptions (e.g. NotFoundException, BadRequestException)
+    // 1. Handle NestJS HttpExceptions
     if (exception instanceof HttpException) {
       httpStatus = exception.getStatus();
       const response = exception.getResponse();
 
-      // Extract message from object or string
       if (typeof response === 'object' && response !== null) {
         const res = response as { message?: string | string[]; error?: string };
 
-        // FIX: Handle both array and string safely, falling back to default if undefined
         const incomingMessage = Array.isArray(res.message)
           ? res.message[0]
           : res.message;
@@ -40,23 +38,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = incomingMessage || message;
         error = res.error || error;
       } else {
-        message = response;
+        // التعديل هنا: تحويل الاستجابة لنص صريح لحل خطأ TS2322
+        message = String(response);
       }
     }
     // 2. Handle Prisma Errors
     else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       switch (exception.code) {
-        case 'P2002': // Unique constraint failed
+        case 'P2002':
           httpStatus = HttpStatus.CONFLICT;
           message = `Duplicate entry: ${(exception.meta as { target?: string })?.target} already exists.`;
           error = 'Conflict';
           break;
-        case 'P2025': // Record not found
+        case 'P2025':
           httpStatus = HttpStatus.NOT_FOUND;
           message = 'Record not found.';
           error = 'Not Found';
           break;
-        case 'P2003': // Foreign key constraint failed
+        case 'P2003':
           httpStatus = HttpStatus.BAD_REQUEST;
           message = 'Invalid reference: Related record does not exist.';
           error = 'Bad Request';
@@ -69,13 +68,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
           break;
       }
     }
-    // 3. Log unknown errors
     else {
       this.logger.error('Unhandled Exception', exception);
     }
 
     const responseBody = {
       statusCode: httpStatus,
+      // تأكيد أخير إن الرسالة نص
       message: Array.isArray(message) ? message[0] : message,
       error,
       timestamp: new Date().toISOString(),
