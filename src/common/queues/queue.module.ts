@@ -2,40 +2,30 @@ import { Global, Module } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
+// ده اللي الملفات التانية محتاجاه عشان الـ Build ينجح
+// المرة دي هيشتغل صح لأننا مسحنا ملف الـ .env اللي كان بيجبره يروح لـ 127.0.0.1
+export const redisConnection = new IORedis(process.env.REDIS_URL || {
+  host: process.env.REDIS_HOST || '127.0.0.1',
+  port: Number(process.env.REDIS_PORT) || 6379,
+  maxRetriesPerRequest: null, // مهم جداً لمكتبة BullMQ
+});
+
 @Global()
 @Module({
   providers: [
     {
-      // ده البروفايدر اللي هيعمل الاتصال بالرديس "فقط" لما الأبلكيشن يحتاجه
       provide: 'REDIS_CONNECTION',
-      useFactory: () => {
-        const redisUrl = process.env.REDIS_URL;
-        
-        // لو فيه رابط كامل (REDIS_URL) استخدمه، لو مفيش استخدم الـ Host والـ Port
-        if (redisUrl) {
-          return new IORedis(redisUrl, {
-            maxRetriesPerRequest: null, // مهم جداً لمكتبة BullMQ
-          });
-        }
-        
-        return new IORedis({
-          host: process.env.REDIS_HOST,
-          port: Number(process.env.REDIS_PORT) || 6379,
-          maxRetriesPerRequest: null,
-        });
-      },
+      useValue: redisConnection,
     },
     {
       provide: 'MAINTENANCE_QUEUE',
-      useFactory: (connection: IORedis) =>
-        new Queue('maintenance', { connection }),
-      inject: ['REDIS_CONNECTION'], // بنحقن الاتصال هنا بعد ما يتجهز
+      useFactory: () =>
+        new Queue('maintenance', { connection: redisConnection }),
     },
     {
       provide: 'STOCK_QUEUE',
-      useFactory: (connection: IORedis) =>
-        new Queue('stock', { connection }),
-      inject: ['REDIS_CONNECTION'],
+      useFactory: () =>
+        new Queue('stock', { connection: redisConnection }),
     },
   ],
   exports: ['MAINTENANCE_QUEUE', 'STOCK_QUEUE', 'REDIS_CONNECTION'],
