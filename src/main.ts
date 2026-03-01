@@ -56,9 +56,10 @@ async function bootstrap() {
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port,'0.0.0.0');
+  
   const url = await app.getUrl();
-  logger.log(`Application is running on: ${await app.getUrl()}/api/v1`);
-}
+  console.log(`🚀 Server is clearly listening on 0.0.0.0:${port}`);
+  logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);}
 
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
