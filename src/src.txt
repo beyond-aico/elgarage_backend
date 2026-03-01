@@ -318,7 +318,7 @@ export class AdminModule {}
 PATH: .\admin\brands\brands.controller.ts
 ############################################################
 
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards,Query } from '@nestjs/common';
 import { BrandsService } from './brands.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -328,23 +328,33 @@ import { CreateModelDto } from './dto/create-model.dto';
 
 @Controller('admin/brands')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
 export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}
 
   @Post()
+  @Roles('ADMIN') // الإضافة للأدمن فقط
   createBrand(@Body() dto: CreateBrandDto) {
     return this.brandsService.createBrand(dto);
   }
 
   @Post('models')
+  @Roles('ADMIN') // إضافة الموديلات للأدمن فقط
   createModel(@Body() dto: CreateModelDto) {
     return this.brandsService.createModel(dto);
   }
 
-  @Get()
-  list() {
+ @Get()
+  @Roles('ADMIN', 'USER', 'ACCOUNT_MANAGER')
+  listBrands() {
     return this.brandsService.listBrands();
+  }
+
+  // 2. مسار جلب الموديلات لبراند معين (GET /admin/brands/models)
+  @Get('models')
+  @Roles('ADMIN', 'USER', 'ACCOUNT_MANAGER')
+  // نستخدم @Query لسحب brandId من الرابط
+  listModels(@Query('brandId') brandId: string) {
+    return this.brandsService.listModels(brandId);
   }
 }
 
@@ -399,6 +409,13 @@ export class BrandsService {
   listBrands() {
     return this.prisma.carBrand.findMany({
       include: { models: true },
+    });
+  }
+  listModels(brandId: string) {
+    return this.prisma.carModel.findMany({
+      where: {
+        brandId: brandId, // بيفلتر الموديلات حسب الماركة المختارة
+      },
     });
   }
 }
@@ -1337,7 +1354,7 @@ export class CarsService {
       where: { userId },
     });
 
-    if (currentCount >= 2) {
+    if (currentCount >= 10) {
       throw new ForbiddenException(
         'Free accounts are limited to 2 vehicles. Please upgrade.',
       );
@@ -1484,11 +1501,6 @@ export class CreateCarDto {
 
   @IsNotEmpty()
   @IsString()
-  @Length(17, 17, { message: 'VIN must be exactly 17 characters' })
-  vin!: string;
-
-  @IsNotEmpty()
-  @IsString()
   plateNumber!: string;
 }
 
@@ -1577,16 +1589,11 @@ export class CarsPrismaRepository implements ICarsRepository {
 
   async findByIdentifier(identifier: {
     plateNumber?: string;
-    vin?: string;
   }): Promise<Car | null> {
     const orConditions: any[] = [];
 
     if (identifier.plateNumber) {
       orConditions.push({ plateNumber: identifier.plateNumber });
-    }
-
-    if (identifier.vin) {
-      orConditions.push({ vin: identifier.vin });
     }
 
     if (orConditions.length === 0) {

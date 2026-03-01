@@ -9,18 +9,26 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
-
-    const adapter = new PrismaPg(pool);
-
+    // إحنا مش هننادي على super هنا بالـ adapter مباشرة
+    // هنخلي الـ adapter يتجهز جوه الـ constructor لضمان قراءة الـ env
     super({
       log: ['warn', 'error'],
     });
   }
 
   async onModuleInit() {
+    const connectionString = process.env.DATABASE_URL;
+    
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is not defined in environment variables');
+    }
+
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaPg(pool);
+    
+    // ربط الـ adapter بالـ client قبل الاتصال
+    (this as any).adapter = adapter; 
+
     await this.$connect();
   }
 

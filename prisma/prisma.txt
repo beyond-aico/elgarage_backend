@@ -264,7 +264,6 @@ model Car {
   
   year        Int
   mileageKm   Int
-  vin         String?   @unique 
   plateNumber String    @unique 
   color       String
 
