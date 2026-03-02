@@ -76,11 +76,11 @@ async function main() {
   });
 
   await prisma.user.create({
-    data: { email: 'manager@vodafone.com', password: hashedPassword, name: 'Ahmed Manager', role: UserRole.ACCOUNT_MANAGER, organizationId: vodafone.id }
+    data: { email: 'test@fleet.com', password: hashedPassword, name: 'Fleet Manager', role: UserRole.ACCOUNT_MANAGER, organizationId: vodafone.id }
   });
 
   await prisma.user.create({
-    data: { email: 'admin@automentor.com', password: hashedPassword, name: 'System Administrator', role: UserRole.ADMIN, organizationId: hq.id }
+    data: { email: 'admin@elgarage.com', password: hashedPassword, name: 'System Administrator', role: UserRole.ADMIN, organizationId: hq.id }
   });
 
   console.log('✅ Users seeded');
