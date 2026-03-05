@@ -29,6 +29,12 @@ export class CarResponseDto {
   vin?: string | null;
 
   @Expose()
+  isFleetVehicle?: boolean;
+
+  @Expose()
+  barcode?: string | null;
+
+  @Expose()
   @Type(() => Object)
   model?: any;
 

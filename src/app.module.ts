@@ -12,6 +12,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { QueueModule } from './common/queues/queue.module';
 import { AdminModule } from './admin/admin.module';
+import { FleetModule } from './fleet/fleet.module';
 
 // لا تنسى استيراد الـ AppController والـ AppService
 import { AppController } from './app.controller';
@@ -30,6 +31,7 @@ const moduleMetadata: ModuleMetadata = {
     ScheduleModule.forRoot(),
     QueueModule,
     AdminModule,
+    FleetModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

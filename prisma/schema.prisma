@@ -42,6 +42,13 @@ enum ServiceCategory {
   OTHER         // Anything else
 }
 
+enum FuelType {
+  BENZINE_80
+  BENZINE_92
+  BENZINE_95
+  DIESEL
+}
+
 // =========================
 // ORGANIZATIONS (B2B LAYER) [NEW]
 // =========================
@@ -83,6 +90,8 @@ model User {
   cars         Car[]           @relation("PersonalCars") // [MODIFIED] Explicit relation name
   orders       Order[]
   refreshToken RefreshToken? 
+
+  fuelLogs     FuelLog[]  
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -141,12 +150,36 @@ model Car {
   mileageKm   Int
   plateNumber String    @unique 
   color       String
+  
+  isFleetVehicle Boolean   @default(false)
+  barcode        String?   @unique
 
   maintenanceRecords MaintenanceRecord[]
   orders             Order[]
+  fuelLogs           FuelLog[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model FuelLog {
+  id          String   @id @default(uuid())
+  carId       String
+  driverId    String
+  odometerKms Int      // Mileage recorded by the driver
+  fuelType    FuelType
+  liters      Float
+  totalCost   Float
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  car         Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+  driver      User     @relation(fields: [driverId], references: [id])
+  
+  @@index([carId])
+  @@index([driverId])
+  @@index([createdAt])
 }
 
 // =========================
