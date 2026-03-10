@@ -9,6 +9,7 @@ async function main() {
   console.log('🌱 Starting Data-Driven Seed...');
 
   // 1. CLEANUP
+  await prisma.fuelLog.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.maintenanceRecord.deleteMany();

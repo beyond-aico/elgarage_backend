@@ -1,11 +1,8 @@
---- BACKEND PROJECT FULL DUMP ---
-Generated on: 2026-02-07
-============================================================
+﻿===== ROOT FOLDER: src =====
 
 
-############################################################
-PATH: .\app.controller.spec.ts
-############################################################
+
+===== FILE: src\app.controller.spec.ts =====
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
@@ -31,11 +28,9 @@ describe('AppController', () => {
 });
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\app.controller.ts
-############################################################
+
+===== FILE: src\app.controller.ts =====
 
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
@@ -44,6 +39,16 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  // هذا هو المسار الجديد الذي سيفحصه ريل واي
+  @Get('health')
+  checkHealth() {
+    return { 
+      status: 'ok', 
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    };
+  }
+
   @Get()
   getHello(): string {
     return this.appService.getHello();
@@ -51,11 +56,8 @@ export class AppController {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\app.module.ts
-############################################################
+===== FILE: src\app.module.ts =====
 
 import { Module, ModuleMetadata } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -71,6 +73,11 @@ import { OrdersModule } from './orders/orders.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { QueueModule } from './common/queues/queue.module';
 import { AdminModule } from './admin/admin.module';
+import { FleetModule } from './fleet/fleet.module';
+
+// لا تنسى استيراد الـ AppController والـ AppService
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 const moduleMetadata: ModuleMetadata = {
   imports: [
@@ -85,6 +92,7 @@ const moduleMetadata: ModuleMetadata = {
     ScheduleModule.forRoot(),
     QueueModule,
     AdminModule,
+    FleetModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -92,9 +100,7 @@ const moduleMetadata: ModuleMetadata = {
     LoggerModule.forRoot({
       pinoHttp:
         process.env.NODE_ENV === 'production'
-          ? {
-              level: 'info',
-            }
+          ? { level: 'info' }
           : {
               level: 'debug',
               transport: {
@@ -108,17 +114,18 @@ const moduleMetadata: ModuleMetadata = {
             },
     }),
   ],
+  // الضبط الناقص اللي كان موقف الدنيا:
+  controllers: [AppController],
+  providers: [AppService],
 };
 
 @Module(moduleMetadata)
 export class AppModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\app.service.ts
-############################################################
+
+===== FILE: src\app.service.ts =====
 
 import { Injectable } from '@nestjs/common';
 
@@ -130,11 +137,9 @@ export class AppService {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\collect_code.py
-############################################################
+
+===== FILE: src\collect_code.py =====
 
 import os
 
@@ -224,11 +229,9 @@ def collect_backend_files():
 if __name__ == "__main__":
     collect_backend_files()
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\main.ts
-############################################################
+
+===== FILE: src\main.ts =====
 
 import { NestFactory, HttpAdapterHost } from '@nestjs/core'; // Import HttpAdapterHost
 import { AppModule } from './app.module';
@@ -286,21 +289,21 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  const port = configService.get<number>('PORT', 3000);
-  await app.listen(port,'0.0.0.0');
-  logger.log(`Application is running on: ${await app.getUrl()}/api/v1`);
-}
-
+// قراءة البورت مباشرة من البيئة لضمان التوافق مع ريل واي
+  const port = process.env.PORT || 3000;
+  
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`🚀 Server is listening on port: ${port}`);
+  logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);}
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
 });
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\admin.module.ts
-############################################################
+
+===== FILE: src\admin\admin.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { BrandsModule } from './brands/brands.module';
@@ -312,11 +315,9 @@ import { ReportsModule } from './reports/reports.module';
 export class AdminModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\brands\brands.controller.ts
-############################################################
+
+===== FILE: src\admin\brands\brands.controller.ts =====
 
 import { Body, Controller, Get, Post, UseGuards,Query } from '@nestjs/common';
 import { BrandsService } from './brands.service';
@@ -359,11 +360,9 @@ export class BrandsController {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\brands\brands.module.ts
-############################################################
+
+===== FILE: src\admin\brands\brands.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { BrandsService } from './brands.service';
@@ -376,11 +375,9 @@ import { BrandsController } from './brands.controller';
 export class BrandsModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\brands\brands.service.ts
-############################################################
+
+===== FILE: src\admin\brands\brands.service.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -421,11 +418,9 @@ export class BrandsService {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\brands\dto\create-brand.dto.ts
-############################################################
+
+===== FILE: src\admin\brands\dto\create-brand.dto.ts =====
 
 import { IsString } from 'class-validator';
 
@@ -435,11 +430,9 @@ export class CreateBrandDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\brands\dto\create-model.dto.ts
-############################################################
+
+===== FILE: src\admin\brands\dto\create-model.dto.ts =====
 
 import { IsString } from 'class-validator';
 
@@ -452,13 +445,11 @@ export class CreateModelDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\admin-reports.controller.ts
-############################################################
 
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+===== FILE: src\admin\reports\admin-reports.controller.ts =====
+
+import { Controller, Get, Query, UseGuards, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminReportsService } from './admin-reports.service';
 import { GetReportDto } from './dto/get-report.dto';
@@ -466,6 +457,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { GetAnalyticsFilterDto } from '../../fleet/dto/get-analytics-filter.dto';
 
 @ApiTags('Admin Reports')
 @ApiBearerAuth()
@@ -492,20 +484,49 @@ export class AdminReportsController {
   async getPopularServices() {
     return this.reportsService.getPopularServices();
   }
+
+  @Get('fleet/dashboard')
+  @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get high-level Fleet KPIs (Total Cost, Cost/KM)' })
+  async getFleetDashboard(@Query() filter: GetAnalyticsFilterDto) {
+    return this.reportsService.getFleetDashboard(filter);
+  }
+
+  @Get('fleet/vehicle-analysis/:carId')
+  @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
+  @ApiOperation({
+    summary:
+      'Get Total Cost of Ownership (Fuel + Maintenance) for a specific vehicle',
+  })
+  async getVehicleAnalysis(
+    @Param('carId') carId: string,
+    @Query() filter: GetAnalyticsFilterDto,
+  ) {
+    return this.reportsService.getVehicleAnalysis(carId, filter);
+  }
+
+  @Get('fleet/driver-analysis/:driverId')
+  @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Analyze driver efficiency (Liters per 100km)' })
+  async getDriverAnalysis(
+    @Param('driverId') driverId: string,
+    @Query() filter: GetAnalyticsFilterDto,
+  ) {
+    return this.reportsService.getDriverAnalysis(driverId, filter);
+  }
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\admin-reports.service.ts
-############################################################
 
-import { Inject, Injectable } from '@nestjs/common';
+===== FILE: src\admin\reports\admin-reports.service.ts =====
+
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { REPORTS_REPOSITORY } from './interfaces/reports.repository.interface';
 import type { IReportsRepository } from './interfaces/reports.repository.interface';
 import { GetReportDto } from './dto/get-report.dto';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
+import { GetAnalyticsFilterDto } from '../../fleet/dto/get-analytics-filter.dto';
 
 @Injectable()
 export class AdminReportsService {
@@ -514,13 +535,36 @@ export class AdminReportsService {
     private readonly reportsRepository: IReportsRepository,
   ) {}
 
+  // 👇 Unified helper that accepts any object with startDate/endDate strings
+  private parseDateFilter(filter: { startDate?: string; endDate?: string }) {
+    const startDate = filter.startDate ? new Date(filter.startDate) : undefined;
+    const endDate = filter.endDate ? new Date(filter.endDate) : undefined;
+
+    if (startDate && isNaN(startDate.getTime())) {
+      throw new BadRequestException('Invalid startDate format');
+    }
+
+    if (endDate && isNaN(endDate.getTime())) {
+      throw new BadRequestException('Invalid endDate format');
+    }
+
+    if (endDate) {
+      endDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('startDate cannot be greater than endDate');
+    }
+
+    return { startDate, endDate };
+  }
+
   async getDashboardStats(dto: GetReportDto) {
-    const start = dto.startDate ? new Date(dto.startDate) : undefined;
-    const end = dto.endDate ? new Date(dto.endDate) : undefined;
+    const { startDate, endDate } = this.parseDateFilter(dto);
 
     const metrics = await this.reportsRepository.getDashboardMetrics(
-      start,
-      end,
+      startDate,
+      endDate,
     );
 
     return new DashboardStatsDto({
@@ -539,14 +583,31 @@ export class AdminReportsService {
   async getPopularServices() {
     return this.reportsRepository.getTopSellingServices();
   }
+
+  async getFleetDashboard(filter: GetAnalyticsFilterDto) {
+    const { startDate, endDate } = this.parseDateFilter(filter);
+    return this.reportsRepository.getFleetDashboardKpis(startDate, endDate);
+  }
+
+  async getVehicleAnalysis(carId: string, filter: GetAnalyticsFilterDto) {
+    const { startDate, endDate } = this.parseDateFilter(filter);
+    return this.reportsRepository.getVehicleTco(carId, startDate, endDate);
+  }
+
+  async getDriverAnalysis(driverId: string, filter: GetAnalyticsFilterDto) {
+    const { startDate, endDate } = this.parseDateFilter(filter);
+    return this.reportsRepository.getDriverEfficiency(
+      driverId,
+      startDate,
+      endDate,
+    );
+  }
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\reports.module.ts
-############################################################
+
+===== FILE: src\admin\reports\reports.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { AdminReportsService } from './admin-reports.service';
@@ -569,11 +630,9 @@ import { ReportsPrismaRepository } from './repositories/reports.prisma.repositor
 export class ReportsModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\dto\dashboard-stats.dto.ts
-############################################################
+
+===== FILE: src\admin\reports\dto\dashboard-stats.dto.ts =====
 
 import { Expose } from 'class-transformer';
 
@@ -599,11 +658,9 @@ export class DashboardStatsDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\dto\get-report.dto.ts
-############################################################
+
+===== FILE: src\admin\reports\dto\get-report.dto.ts =====
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsOptional } from 'class-validator';
@@ -625,11 +682,9 @@ export class GetReportDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\interfaces\reports.repository.interface.ts
-############################################################
+
+===== FILE: src\admin\reports\interfaces\reports.repository.interface.ts =====
 
 import { Part } from '@prisma/client';
 
@@ -643,6 +698,30 @@ export interface DashboardMetrics {
   lowStockCount: number;
 }
 
+export interface FleetDashboardKpis {
+  totalFleetCost: number;
+  totalFuelConsumedLiters: number;
+  totalKmsDriven: number;
+  costPerKm: number;
+}
+
+export interface VehicleTcoAnalytics {
+  carId: string;
+  fuelCost: number;
+  maintenanceCost: number;
+  totalCostOfOwnership: number;
+  totalLiters: number;
+}
+
+export interface DriverEfficiencyAnalytics {
+  driverId: string;
+  totalFuelCost: number;
+  totalLiters: number;
+  totalKmsDriven: number;
+  litersPer100Km: number;
+  efficiencyStatus: 'EXCELLENT' | 'NORMAL' | 'POOR' | 'UNKNOWN';
+}
+
 export interface IReportsRepository {
   getDashboardMetrics(
     startDate?: Date,
@@ -650,30 +729,68 @@ export interface IReportsRepository {
   ): Promise<DashboardMetrics>;
   getLowStockParts(threshold?: number): Promise<Part[]>;
   getTopSellingServices(limit?: number): Promise<any[]>;
+  getFleetDashboardKpis(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<FleetDashboardKpis>;
+  getVehicleTco(
+    carId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<VehicleTcoAnalytics>;
+  getDriverEfficiency(
+    driverId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DriverEfficiencyAnalytics>;
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\admin\reports\repositories\reports.prisma.repository.ts
-############################################################
 
-import { Injectable } from '@nestjs/common';
-import { DashboardMetrics } from '../interfaces/reports.repository.interface';
+===== FILE: src\admin\reports\repositories\reports.prisma.repository.ts =====
+
+import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  DashboardMetrics,
+  FleetDashboardKpis,
+  VehicleTcoAnalytics,
+  DriverEfficiencyAnalytics,
+} from '../interfaces/reports.repository.interface';
 import type { IReportsRepository } from '../interfaces/reports.repository.interface';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { Part, OrderStatus } from '@prisma/client';
+import { Part, OrderStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ReportsPrismaRepository implements IReportsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private buildDateFilter(
+    startDate?: Date,
+    endDate?: Date,
+  ): Prisma.FuelLogWhereInput {
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('startDate cannot be greater than endDate');
+    }
+
+    const where: Prisma.FuelLogWhereInput = {};
+
+    if (startDate || endDate) {
+      const createdAt: Prisma.DateTimeFilter = {};
+
+      if (startDate) createdAt.gte = startDate;
+      if (endDate) createdAt.lte = endDate;
+
+      where.createdAt = createdAt;
+    }
+
+    return where;
+  }
+
   async getDashboardMetrics(
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics> {
-    // Basic date filtering for orders if needed
     const dateFilter =
       startDate && endDate
         ? {
@@ -692,12 +809,12 @@ export class ReportsPrismaRepository implements IReportsRepository {
         _sum: { totalPrice: true },
         where: {
           ...dateFilter,
-          status: { not: OrderStatus.CANCELLED }, // Don't count cancelled orders
+          status: { not: OrderStatus.CANCELLED },
         },
       }),
       this.prisma.part.count({
         where: {
-          quantity: { lte: 5 }, // You can make this dynamic if needed
+          quantity: { lte: 5 },
         },
       }),
     ]);
@@ -723,7 +840,6 @@ export class ReportsPrismaRepository implements IReportsRepository {
   }
 
   async getTopSellingServices(limit: number = 5): Promise<any[]> {
-    // Complex grouping: Count how many times each serviceId appears in OrderItems
     const result = await this.prisma.orderItem.groupBy({
       by: ['serviceId'],
       _count: {
@@ -740,29 +856,154 @@ export class ReportsPrismaRepository implements IReportsRepository {
       take: limit,
     });
 
-    // We need to fetch the actual Service names because groupBy only gives IDs
-    // In a pure SQL view this is easier, but here we do a second lookup
     const serviceIds = result.map((r) => r.serviceId as string);
+
     const services = await this.prisma.service.findMany({
       where: { id: { in: serviceIds } },
     });
 
     return result.map((r) => {
       const service = services.find((s) => s.id === r.serviceId);
+
       return {
-        serviceName: service?.name || 'Unknown',
+        serviceName: service?.name ?? 'Unknown',
         count: r._count.serviceId,
       };
     });
   }
+
+  async getFleetDashboardKpis(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<FleetDashboardKpis> {
+    const where = this.buildDateFilter(startDate, endDate);
+
+    const [totals, vehicleStats] = await Promise.all([
+      this.prisma.fuelLog.aggregate({
+        _sum: { totalCost: true, liters: true },
+        where,
+      }),
+      this.prisma.fuelLog.groupBy({
+        by: ['carId'],
+        _min: { odometerKms: true },
+        _max: { odometerKms: true },
+        where,
+      }),
+    ]);
+
+    const totalKmsDriven = vehicleStats.reduce((acc, curr) => {
+      const min = curr._min.odometerKms ?? 0;
+      const max = curr._max.odometerKms ?? 0;
+      return acc + (max - min);
+    }, 0);
+
+    const totalFleetCost = totals._sum.totalCost ?? 0;
+
+    const costPerKm = totalKmsDriven > 0 ? totalFleetCost / totalKmsDriven : 0;
+
+    return {
+      totalFleetCost,
+      totalFuelConsumedLiters: totals._sum.liters ?? 0,
+      totalKmsDriven,
+      costPerKm: Number(costPerKm.toFixed(2)),
+    };
+  }
+
+  // Vehicle Total Cost of Ownership
+  async getVehicleTco(
+    carId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<VehicleTcoAnalytics> {
+    const where = this.buildDateFilter(startDate, endDate);
+
+    const maintenanceWhere: Prisma.OrderWhereInput = { carId };
+
+    if (startDate || endDate) {
+      maintenanceWhere.createdAt = {};
+      if (startDate) maintenanceWhere.createdAt.gte = startDate;
+      if (endDate) maintenanceWhere.createdAt.lte = endDate;
+    }
+
+    const [fuel, maintenance] = await Promise.all([
+      this.prisma.fuelLog.aggregate({
+        _sum: { totalCost: true, liters: true },
+        where: { carId, ...where },
+      }),
+      this.prisma.order.aggregate({
+        _sum: { totalPrice: true },
+        where: maintenanceWhere,
+      }),
+    ]);
+
+    const fuelCost = fuel._sum.totalCost ?? 0;
+    const maintenanceCost = Number(maintenance._sum.totalPrice ?? 0);
+
+    return {
+      carId,
+      fuelCost,
+      maintenanceCost,
+      totalCostOfOwnership: fuelCost + maintenanceCost,
+      totalLiters: fuel._sum.liters ?? 0,
+    };
+  }
+
+  // Driver Efficiency Analytics
+  async getDriverEfficiency(
+    driverId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DriverEfficiencyAnalytics> {
+    const where = this.buildDateFilter(startDate, endDate);
+
+    const [fuel, carStats] = await Promise.all([
+      this.prisma.fuelLog.aggregate({
+        _sum: { totalCost: true, liters: true },
+        where: { driverId, ...where },
+      }),
+      this.prisma.fuelLog.groupBy({
+        by: ['carId'],
+        _min: { odometerKms: true },
+        _max: { odometerKms: true },
+        where: { driverId, ...where },
+      }),
+    ]);
+
+    const totalKmsDriven = carStats.reduce((acc, curr) => {
+      const min = curr._min.odometerKms ?? 0;
+      const max = curr._max.odometerKms ?? 0;
+      return acc + (max - min);
+    }, 0);
+
+    const totalLiters = fuel._sum.liters ?? 0;
+
+    const litersPer100Km =
+      totalKmsDriven > 0 ? (totalLiters / totalKmsDriven) * 100 : 0;
+
+    let efficiencyStatus: DriverEfficiencyAnalytics['efficiencyStatus'] =
+      'UNKNOWN';
+
+    if (totalKmsDriven > 0) {
+      if (litersPer100Km < 8) efficiencyStatus = 'EXCELLENT';
+      else if (litersPer100Km <= 12) efficiencyStatus = 'NORMAL';
+      else efficiencyStatus = 'POOR';
+    }
+
+    return {
+      driverId,
+      totalFuelCost: fuel._sum.totalCost ?? 0,
+      totalLiters,
+      totalKmsDriven,
+      litersPer100Km: Number(litersPer100Km.toFixed(2)),
+      efficiencyStatus,
+    };
+  }
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\auth.controller.ts
-############################################################
+
+===== FILE: src\auth\auth.controller.ts =====
 
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -801,11 +1042,9 @@ export class AuthController {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\auth.module.ts
-############################################################
+
+===== FILE: src\auth\auth.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
@@ -848,11 +1087,9 @@ import { RefreshStrategy } from './refresh.strategy'; // If you have this
 export class AuthModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\auth.service.ts
-############################################################
+
+===== FILE: src\auth\auth.service.ts =====
 
 // src/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
@@ -928,11 +1165,9 @@ async refresh(userId: string) {
 
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\jwt.strategy.ts
-############################################################
+
+===== FILE: src\auth\jwt.strategy.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
@@ -959,11 +1194,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\refresh.strategy.ts
-############################################################
+
+===== FILE: src\auth\refresh.strategy.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
@@ -986,25 +1219,21 @@ export class RefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\decorators\roles.decorator.ts
-############################################################
+
+===== FILE: src\auth\decorators\roles.decorator.ts =====
 
 import { SetMetadata } from '@nestjs/common';
 
 export const ROLES_KEY = 'roles';
 
-export type AppRole = 'USER' | 'ADMIN' | 'ACCOUNT_MANAGER';
+export type AppRole = 'USER' | 'ADMIN' | 'ACCOUNT_MANAGER' | 'DRIVER';
 export const Roles = (...roles: AppRole[]) => SetMetadata(ROLES_KEY, roles);
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\dto\auth.dto.ts
-############################################################
+
+===== FILE: src\auth\dto\auth.dto.ts =====
 
 // src/auth/dto/auth.dto.ts
 import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
@@ -1044,11 +1273,9 @@ export class LoginDto {
   password!: string;
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\dto\login.dto.ts
-############################################################
+
+===== FILE: src\auth\dto\login.dto.ts =====
 
 import { IsEmail, IsString } from 'class-validator';
 
@@ -1061,11 +1288,9 @@ export class LoginDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\dto\register.dto.ts
-############################################################
+
+===== FILE: src\auth\dto\register.dto.ts =====
 
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
@@ -1088,22 +1313,18 @@ export class RegisterDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\guards\jwt-auth.guard.ts
-############################################################
+
+===== FILE: src\auth\guards\jwt-auth.guard.ts =====
 
 import { AuthGuard } from '@nestjs/passport';
 
 export class JwtAuthGuard extends AuthGuard('jwt') {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\guards\roles.guard.ts
-############################################################
+
+===== FILE: src\auth\guards\roles.guard.ts =====
 
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -1136,11 +1357,9 @@ export class RolesGuard implements CanActivate {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\types\auth-user.type.ts
-############################################################
+
+===== FILE: src\auth\types\auth-user.type.ts =====
 
 export interface AuthUser {
   userId: string;
@@ -1148,11 +1367,9 @@ export interface AuthUser {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\types\jwt-payload.type.ts
-############################################################
+
+===== FILE: src\auth\types\jwt-payload.type.ts =====
 
 export interface JwtPayload {
   sub: string;
@@ -1164,11 +1381,9 @@ export interface RefreshJwtPayload {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\auth\utils\jwt-from-request.ts
-############################################################
+
+===== FILE: src\auth\utils\jwt-from-request.ts =====
 
 import type { Request } from 'express';
 import type { JwtFromRequestFunction } from 'passport-jwt';
@@ -1205,11 +1420,9 @@ export const jwtFromBody =
   };
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\cars.controller.ts
-############################################################
+
+===== FILE: src\cars\cars.controller.ts =====
 
 import {
   Controller,
@@ -1263,11 +1476,9 @@ export class CarsController {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\cars.module.ts
-############################################################
+
+===== FILE: src\cars\cars.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { CarsService } from './cars.service';
@@ -1291,11 +1502,9 @@ import { CARS_REPOSITORY } from './interfaces/cars.repository.interface';
 export class CarsModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\cars.service.ts
-############################################################
+
+===== FILE: src\cars\cars.service.ts =====
 
 import {
   Injectable,
@@ -1427,11 +1636,9 @@ export class CarsService {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\dto\car-response.dto.ts
-############################################################
+
+===== FILE: src\cars\dto\car-response.dto.ts =====
 
 import { Exclude, Expose, Type } from 'class-transformer';
 
@@ -1464,6 +1671,12 @@ export class CarResponseDto {
   vin?: string | null;
 
   @Expose()
+  isFleetVehicle?: boolean;
+
+  @Expose()
+  barcode?: string | null;
+
+  @Expose()
   @Type(() => Object)
   model?: any;
 
@@ -1473,13 +1686,19 @@ export class CarResponseDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\dto\create-car.dto.ts
-############################################################
 
-import { IsInt, IsNotEmpty, IsString, Length, Min, Max } from 'class-validator';
+===== FILE: src\cars\dto\create-car.dto.ts =====
+
+import {
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  Min,
+  Max,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 
 export class CreateCarDto {
   @IsNotEmpty()
@@ -1502,13 +1721,20 @@ export class CreateCarDto {
   @IsNotEmpty()
   @IsString()
   plateNumber!: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isFleetVehicle?: boolean;
+
+  @IsString()
+  @IsOptional()
+  barcode?: string;
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\dto\update-car.dto.ts
-############################################################
+
+
+===== FILE: src\cars\dto\update-car.dto.ts =====
 
 import { PartialType } from '@nestjs/swagger';
 import { CreateCarDto } from './create-car.dto';
@@ -1516,11 +1742,9 @@ import { CreateCarDto } from './create-car.dto';
 export class UpdateCarDto extends PartialType(CreateCarDto) {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\interfaces\cars.repository.interface.ts
-############################################################
+
+===== FILE: src\cars\interfaces\cars.repository.interface.ts =====
 
 import { Car } from '@prisma/client';
 import { CreateCarDto } from '../dto/create-car.dto';
@@ -1541,11 +1765,9 @@ export interface ICarsRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\cars\repositories\cars.prisma.repository.ts
-############################################################
+
+===== FILE: src\cars\repositories\cars.prisma.repository.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { ICarsRepository } from '../interfaces/cars.repository.interface';
@@ -1621,11 +1843,9 @@ export class CarsPrismaRepository implements ICarsRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\common\dto\pagination.dto.ts
-############################################################
+
+===== FILE: src\common\dto\pagination.dto.ts =====
 
 import { IsInt, IsOptional, Min } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -1656,11 +1876,9 @@ export class PaginationDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\common\filters\all-exceptions.filter.ts
-############################################################
+
+===== FILE: src\common\filters\all-exceptions.filter.ts =====
 
 import {
   ExceptionFilter,
@@ -1687,16 +1905,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let error = 'Internal Server Error';
 
-    // 1. Handle NestJS HttpExceptions (e.g. NotFoundException, BadRequestException)
+    // 1. Handle NestJS HttpExceptions
     if (exception instanceof HttpException) {
       httpStatus = exception.getStatus();
       const response = exception.getResponse();
 
-      // Extract message from object or string
       if (typeof response === 'object' && response !== null) {
         const res = response as { message?: string | string[]; error?: string };
 
-        // FIX: Handle both array and string safely, falling back to default if undefined
         const incomingMessage = Array.isArray(res.message)
           ? res.message[0]
           : res.message;
@@ -1704,23 +1920,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = incomingMessage || message;
         error = res.error || error;
       } else {
-        message = response;
+        // التعديل هنا: تحويل الاستجابة لنص صريح لحل خطأ TS2322
+        message = String(response);
       }
     }
     // 2. Handle Prisma Errors
     else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       switch (exception.code) {
-        case 'P2002': // Unique constraint failed
+        case 'P2002':
           httpStatus = HttpStatus.CONFLICT;
           message = `Duplicate entry: ${(exception.meta as { target?: string })?.target} already exists.`;
           error = 'Conflict';
           break;
-        case 'P2025': // Record not found
+        case 'P2025':
           httpStatus = HttpStatus.NOT_FOUND;
           message = 'Record not found.';
           error = 'Not Found';
           break;
-        case 'P2003': // Foreign key constraint failed
+        case 'P2003':
           httpStatus = HttpStatus.BAD_REQUEST;
           message = 'Invalid reference: Related record does not exist.';
           error = 'Bad Request';
@@ -1733,13 +1950,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
           break;
       }
     }
-    // 3. Log unknown errors
     else {
       this.logger.error('Unhandled Exception', exception);
     }
 
     const responseBody = {
       statusCode: httpStatus,
+      // تأكيد أخير إن الرسالة نص
       message: Array.isArray(message) ? message[0] : message,
       error,
       timestamp: new Date().toISOString(),
@@ -1751,11 +1968,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\common\interceptors\transform.interceptor.ts
-############################################################
+===== FILE: src\common\interceptors\transform.interceptor.ts =====
 
 import {
   Injectable,
@@ -1797,59 +2011,699 @@ export class TransformInterceptor<T> implements NestInterceptor<
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\common\queues\queue.constants.ts
-############################################################
+
+===== FILE: src\common\queues\queue.constants.ts =====
 
 export const QUEUE_MAINTENANCE = 'maintenance';
 export const QUEUE_STOCK = 'stock';
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\common\queues\queue.module.ts
-############################################################
+
+===== FILE: src\common\queues\queue.module.ts =====
 
 import { Global, Module } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
-export const redisConnection = new IORedis({
-  host: process.env.REDIS_HOST,
-  port: Number(process.env.REDIS_PORT),
-});
+// فصلنا إنشاء الاتصال عشان TypeScript ميزعلش
+const createRedisConnection = () => {
+  const redisUrl = process.env.REDIS_URL;
+
+  // لو فيه URL كامل استخدمه
+  if (redisUrl) {
+    return new IORedis(redisUrl, {
+      maxRetriesPerRequest: null,
+    });
+  }
+
+  // لو مفيش، استخدم الـ Object
+  return new IORedis({
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: Number(process.env.REDIS_PORT) || 6379,
+    maxRetriesPerRequest: null,
+  });
+};
+
+export const redisConnection = createRedisConnection();
 
 @Global()
 @Module({
   providers: [
     {
+      provide: 'REDIS_CONNECTION',
+      useValue: redisConnection,
+    },
+    {
       provide: 'MAINTENANCE_QUEUE',
       useFactory: () =>
-        new Queue('maintenance', {
-          connection: redisConnection,
-        }),
+        new Queue('maintenance', { connection: redisConnection }),
     },
     {
       provide: 'STOCK_QUEUE',
       useFactory: () =>
-        new Queue('stock', {
-          connection: redisConnection,
-        }),
+        new Queue('stock', { connection: redisConnection }),
     },
   ],
-  exports: ['MAINTENANCE_QUEUE', 'STOCK_QUEUE'],
+  exports: ['MAINTENANCE_QUEUE', 'STOCK_QUEUE', 'REDIS_CONNECTION'],
 })
 export class QueueModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\inventory.controller.ts
-############################################################
+===== FILE: src\fleet\fleet.controller.ts =====
+
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Request } from 'express';
+
+import { FleetService } from './fleet.service';
+import { AuthBarcodeDto } from './dto/auth-barcode.dto';
+import { CreateFuelLogDto } from './dto/create-fuel-log.dto';
+
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+
+import { UserRole } from '@prisma/client';
+import { GetAnalyticsFilterDto } from './dto/get-analytics-filter.dto';
+
+// 👈 Now extends Express Request properly
+interface AuthRequest extends Request {
+  user: {
+    id: string;
+    role: UserRole;
+  };
+}
+
+@ApiTags('Fleet')
+@ApiBearerAuth()
+@Controller('fleet')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class FleetController {
+  constructor(private readonly fleetService: FleetService) {}
+
+  // DRIVER ENDPOINTS
+  @Post('auth-barcode')
+  @Roles(UserRole.DRIVER)
+  @ApiOperation({
+    summary: 'Authenticate fleet vehicle by barcode',
+    description: 'Driver scans vehicle barcode to unlock vehicle session',
+  })
+  async authBarcode(@Body() dto: AuthBarcodeDto) {
+    return this.fleetService.authenticateVehicle(dto);
+  }
+
+  @Post('logs')
+  @Roles(UserRole.DRIVER)
+  @ApiOperation({
+    summary: 'Driver submits fuel log',
+    description:
+      'Records fuel consumption and odometer reading for a fleet vehicle',
+  })
+  async addFuelLog(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateFuelLogDto,
+  ): Promise<any> {
+    const driverId = req.user.id;
+
+    return this.fleetService.addFuelLog(driverId, dto);
+  }
+
+  // MANAGER ENDPOINTS
+  @Get('analytics/vehicles')
+  @Roles(UserRole.ACCOUNT_MANAGER)
+  @ApiOperation({
+    summary: 'Fleet fuel cost analytics by vehicle',
+    description:
+      'Supports optional startDate and endDate query parameters for time-bound filtering.',
+  })
+  async getVehicleAnalytics(@Query() filter: GetAnalyticsFilterDto) {
+    return this.fleetService.getCostByVehicle(filter);
+  }
+
+  @Get('analytics/drivers')
+  @Roles(UserRole.ACCOUNT_MANAGER)
+  @ApiOperation({
+    summary: 'Fleet fuel cost analytics by driver',
+    description:
+      'Supports optional startDate and endDate query parameters for time-bound filtering.',
+  })
+  async getDriverAnalytics(@Query() filter: GetAnalyticsFilterDto) {
+    return this.fleetService.getCostByDriver(filter);
+  }
+}
+
+
+
+
+===== FILE: src\fleet\fleet.module.ts =====
+
+import { Module } from '@nestjs/common';
+import { FleetController } from './fleet.controller';
+import { FleetService } from './fleet.service';
+import { PrismaModule } from '../prisma/prisma.module';
+import { FLEET_REPOSITORY } from './interfaces/fleet.repository.interface';
+import { FleetPrismaRepository } from './repositories/fleet.prisma.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [FleetController],
+  providers: [
+    FleetService,
+    {
+      provide: FLEET_REPOSITORY,
+      useClass: FleetPrismaRepository,
+    },
+  ],
+  exports: [FleetService, FLEET_REPOSITORY],
+})
+export class FleetModule {}
+
+
+
+
+===== FILE: src\fleet\fleet.service.ts =====
+
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Inject,
+} from '@nestjs/common';
+import { FuelLog } from '@prisma/client';
+
+import { AuthBarcodeDto } from './dto/auth-barcode.dto';
+import { CreateFuelLogDto } from './dto/create-fuel-log.dto';
+import {
+  IFleetRepository,
+  FLEET_REPOSITORY,
+} from './interfaces/fleet.repository.interface';
+import { GetAnalyticsFilterDto } from './dto/get-analytics-filter.dto';
+
+@Injectable()
+export class FleetService {
+  private readonly logger = new Logger(FleetService.name);
+
+  constructor(
+    @Inject(FLEET_REPOSITORY)
+    private readonly fleetRepo: IFleetRepository,
+  ) {}
+
+  async authenticateVehicle(dto: AuthBarcodeDto) {
+    const car = await this.fleetRepo.findCarByBarcode(dto.barcode);
+
+    if (!car || !car.isFleetVehicle) {
+      throw new NotFoundException('Invalid fleet vehicle barcode');
+    }
+
+    return {
+      message: 'Vehicle authenticated successfully',
+      data: {
+        id: car.id,
+        plateNumber: car.plateNumber,
+        brand: car.model?.brand?.name ?? null,
+        model: car.model?.name ?? null,
+        year: car.year,
+      },
+    };
+  }
+
+  async addFuelLog(
+    driverId: string,
+    dto: CreateFuelLogDto,
+  ): Promise<{ message: string; data: FuelLog }> {
+    const car = await this.fleetRepo.findCarById(dto.carId);
+
+    if (!car) {
+      throw new NotFoundException('Car not found');
+    }
+
+    if (!car.isFleetVehicle) {
+      throw new BadRequestException(
+        'Fuel logs are allowed only for fleet vehicles',
+      );
+    }
+
+    if (dto.odometerKms < car.mileageKm) {
+      throw new BadRequestException(
+        'Odometer reading cannot be less than current vehicle mileage',
+      );
+    }
+
+    try {
+      const log = await this.fleetRepo.createFuelLogAndUpdateMileage(
+        driverId,
+        dto,
+      );
+
+      return {
+        message: 'Fuel log recorded successfully',
+        data: log,
+      };
+    } catch (error) {
+      this.logger.error(
+        'Fuel log creation failed',
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new BadRequestException('Failed to record fuel log');
+    }
+  }
+
+  private parseDateRange(filter: GetAnalyticsFilterDto): { startDate?: Date; endDate?: Date } {
+    const startDate = filter.startDate ? new Date(filter.startDate) : undefined;
+
+    let endDate: Date | undefined;
+    if (filter.endDate) {
+      endDate = new Date(filter.endDate);
+      endDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('startDate cannot be greater than endDate');
+    }
+
+    return { startDate, endDate };
+  }
+
+  async getCostByVehicle(filter: GetAnalyticsFilterDto) {
+    const { startDate, endDate } = this.parseDateRange(filter);
+
+    const rawData = await this.fleetRepo.getCostAnalyticsByVehicle(
+      startDate,
+      endDate,
+    );
+
+    if (!rawData.length) return [];
+
+    return rawData.map(({ item, car }) => ({
+      carId: item.carId,
+      plateNumber: car?.plateNumber ?? null,
+      brand: car?.model?.brand?.name ?? null,
+      model: car?.model?.name ?? null,
+      totalFuelCost: item._sum.totalCost ?? 0,
+      totalLiters: item._sum.liters ?? 0,
+      lastOdometer: item._max.odometerKms ?? 0,
+    }));
+  }
+
+  async getCostByDriver(filter: GetAnalyticsFilterDto) {
+    const { startDate, endDate } = this.parseDateRange(filter);
+
+    const rawData = await this.fleetRepo.getCostAnalyticsByDriver(
+      startDate,
+      endDate,
+    );
+
+    if (!rawData.length) return [];
+
+    return rawData.map(({ item, driver }) => ({
+      driverId: item.driverId,
+      driverName: driver?.name ?? null,
+      totalFuelCost: item._sum.totalCost ?? 0,
+      totalLiters: item._sum.liters ?? 0,
+      fuelLogsCount: item._count.id,
+    }));
+  }
+}
+
+
+
+
+===== FILE: src\fleet\dto\auth-barcode.dto.ts =====
+
+import { IsString, IsNotEmpty } from 'class-validator';
+
+export class AuthBarcodeDto {
+  @IsString()
+  @IsNotEmpty()
+  barcode: string;
+}
+
+
+
+
+===== FILE: src\fleet\dto\create-fuel-log.dto.ts =====
+
+import {
+  IsString,
+  IsNumber,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  Min,
+} from 'class-validator';
+import { FuelType } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreateFuelLogDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  carId: string;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  odometerKms: number;
+
+  @ApiProperty({ enum: FuelType })
+  @IsEnum(FuelType)
+  fuelType: FuelType;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  liters: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  totalCost: number;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
+
+
+===== FILE: src\fleet\dto\get-analytics-filter.dto.ts =====
+
+import { IsOptional, IsDateString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+export class GetAnalyticsFilterDto {
+  @ApiPropertyOptional({
+    description: 'Start date for filtering fuel logs',
+    example: '2026-03-01',
+    format: 'date',
+  })
+  @IsOptional()
+  @IsDateString()
+  @Type(() => Date)
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'End date for filtering fuel logs',
+    example: '2026-03-31',
+    format: 'date',
+  })
+  @IsOptional()
+  @IsDateString()
+  @Type(() => Date)
+  endDate?: string;
+}
+
+
+
+
+===== FILE: src\fleet\interfaces\fleet.repository.interface.ts =====
+
+import { FuelLog } from '@prisma/client';
+import { CreateFuelLogDto } from '../dto/create-fuel-log.dto';
+
+export const FLEET_REPOSITORY = 'FLEET_REPOSITORY';
+
+export interface CarWithModelDetails {
+  id: string;
+  plateNumber: string;
+  year: number;
+  isFleetVehicle: boolean;
+  model: {
+    name: string;
+    brand: {
+      name: string;
+    } | null;
+  } | null;
+}
+
+export interface BasicCarMileage {
+  id: string;
+  isFleetVehicle: boolean;
+  mileageKm: number;
+}
+
+export interface VehicleCostAnalyticsRaw {
+  item: {
+    carId: string;
+    _sum: {
+      totalCost: number | null;
+      liters: number | null;
+    };
+    _max: {
+      odometerKms: number | null;
+    };
+  };
+  car?: {
+    id: string;
+    plateNumber: string;
+    model: {
+      name: string;
+      brand: {
+        name: string;
+      } | null;
+    } | null;
+  };
+}
+
+// 4. Define the aggregated Driver Analytics payload
+export interface DriverCostAnalyticsRaw {
+  item: {
+    driverId: string;
+    _sum: {
+      totalCost: number | null;
+      liters: number | null;
+    };
+    _count: {
+      id: number;
+    };
+  };
+  driver?: {
+    id: string;
+    name: string;
+  };
+}
+
+// 5. The fully typed Interface
+export interface IFleetRepository {
+  findCarByBarcode(barcode: string): Promise<CarWithModelDetails | null>;
+
+  findCarById(carId: string): Promise<BasicCarMileage | null>;
+
+  createFuelLogAndUpdateMileage(
+    driverId: string,
+    dto: CreateFuelLogDto,
+  ): Promise<FuelLog>;
+
+  getCostAnalyticsByVehicle(): Promise<VehicleCostAnalyticsRaw[]>;
+
+  getCostAnalyticsByDriver(): Promise<DriverCostAnalyticsRaw[]>;
+
+  getCostAnalyticsByVehicle(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<VehicleCostAnalyticsRaw[]>;
+
+  getCostAnalyticsByDriver(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DriverCostAnalyticsRaw[]>;
+}
+
+
+
+
+===== FILE: src\fleet\repositories\fleet.prisma.repository.ts =====
+
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import {
+  IFleetRepository,
+  CarWithModelDetails,
+  BasicCarMileage,
+  VehicleCostAnalyticsRaw,
+  DriverCostAnalyticsRaw,
+} from '../interfaces/fleet.repository.interface';
+import { CreateFuelLogDto } from '../dto/create-fuel-log.dto';
+import { Prisma, FuelLog } from '@prisma/client';
+
+@Injectable()
+export class FleetPrismaRepository implements IFleetRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async findCarByBarcode(barcode: string): Promise<CarWithModelDetails | null> {
+    return this.prisma.car.findUnique({
+      where: { barcode },
+      select: {
+        id: true,
+        plateNumber: true,
+        year: true,
+        isFleetVehicle: true,
+        model: {
+          select: {
+            name: true,
+            brand: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async findCarById(carId: string): Promise<BasicCarMileage | null> {
+    return this.prisma.car.findUnique({
+      where: { id: carId },
+      select: {
+        id: true,
+        isFleetVehicle: true,
+        mileageKm: true,
+      },
+    });
+  }
+
+  async createFuelLogAndUpdateMileage(
+    driverId: string,
+    dto: CreateFuelLogDto,
+  ): Promise<FuelLog> {
+    return this.prisma.$transaction(async (tx) => {
+      const car = await tx.car.findUnique({
+        where: { id: dto.carId },
+        select: { mileageKm: true },
+      });
+
+      if (!car) {
+        throw new BadRequestException('Car not found');
+      }
+
+      if (dto.odometerKms < car.mileageKm) {
+        throw new BadRequestException(
+          'Odometer reading cannot be less than current vehicle mileage',
+        );
+      }
+
+      const log = await tx.fuelLog.create({
+        data: {
+          driverId,
+          carId: dto.carId,
+          odometerKms: dto.odometerKms,
+          fuelType: dto.fuelType,
+          liters: dto.liters,
+          totalCost: dto.totalCost,
+          notes: dto.notes,
+        },
+      });
+
+      await tx.car.update({
+        where: { id: dto.carId },
+        data: { mileageKm: dto.odometerKms },
+      });
+
+      return log;
+    });
+  }
+
+  async getCostAnalyticsByVehicle(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<VehicleCostAnalyticsRaw[]> {
+    const whereClause = this.buildDateFilter(startDate, endDate);
+
+    const analysis = await this.prisma.fuelLog.groupBy({
+      by: ['carId'],
+      _sum: { totalCost: true, liters: true },
+      _max: { odometerKms: true },
+      where: whereClause, 
+    });
+
+    if (analysis.length === 0) return [];
+
+    const carIds = [...new Set(analysis.map((a) => a.carId))];
+    const cars = await this.prisma.car.findMany({
+      where: { id: { in: carIds } },
+      select: {
+        id: true,
+        plateNumber: true,
+        model: {
+          select: { name: true, brand: { select: { name: true } } },
+        },
+      },
+    });
+
+    const carMap = new Map(cars.map((c) => [c.id, c]));
+    return analysis.map((item) => ({ item, car: carMap.get(item.carId) }));
+  }
+
+  async getCostAnalyticsByDriver(startDate?: Date, endDate?: Date): Promise<DriverCostAnalyticsRaw[]> {
+    const whereClause = this.buildDateFilter(startDate, endDate);
+
+    const analysis = await this.prisma.fuelLog.groupBy({
+      by: ['driverId'],
+      _sum: { totalCost: true, liters: true },
+      _count: { id: true },
+      where: whereClause, // 👈 Apply the filter here
+    });
+
+    if (analysis.length === 0) return [];
+
+    const driverIds = [...new Set(analysis.map((a) => a.driverId))];
+    const drivers = await this.prisma.user.findMany({
+      where: { id: { in: driverIds } },
+      select: { id: true, name: true },
+    });
+
+    const driverMap = new Map(drivers.map((d) => [d.id, d]));
+    return analysis.map((item) => ({ item, driver: driverMap.get(item.driverId) }));
+  }
+
+  private buildDateFilter(
+    startDate?: Date,
+    endDate?: Date,
+  ): Prisma.FuelLogWhereInput {
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('startDate cannot be greater than endDate');
+    }
+
+    const where: Prisma.FuelLogWhereInput = {};
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+
+      if (startDate) {
+        where.createdAt.gte = startDate;
+      }
+
+      if (endDate) {
+        where.createdAt.lte = endDate;
+      }
+    }
+
+    return where;
+  }
+}
+
+
+
+
+===== FILE: src\inventory\inventory.controller.ts =====
 
 import {
   Controller,
@@ -1935,11 +2789,9 @@ export class InventoryController {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\inventory.module.ts
-############################################################
+
+===== FILE: src\inventory\inventory.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
@@ -1963,11 +2815,9 @@ import { InventoryPrismaRepository } from './repositories/inventory.prisma.repos
 export class InventoryModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\inventory.service.ts
-############################################################
+
+===== FILE: src\inventory\inventory.service.ts =====
 
 import {
   Inject,
@@ -2028,11 +2878,9 @@ export class InventoryService {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\stock.jobs.ts
-############################################################
+
+===== FILE: src\inventory\stock.jobs.ts =====
 
 import { Inject, Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -2050,11 +2898,9 @@ export class StockJobs {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\stock.processor.ts
-############################################################
+
+===== FILE: src\inventory\stock.processor.ts =====
 
 import { Worker } from 'bullmq';
 import { redisConnection } from '../common/queues/queue.module';
@@ -2081,11 +2927,9 @@ new Worker<{ itemId: string }>(
 );
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\dto\create-part.dto.ts
-############################################################
+
+===== FILE: src\inventory\dto\create-part.dto.ts =====
 
 import { 
   IsNotEmpty, 
@@ -2124,11 +2968,9 @@ export class CreatePartDto {
   compatibleModelIds!: string[]; 
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\dto\part-response.dto.ts
-############################################################
+
+===== FILE: src\inventory\dto\part-response.dto.ts =====
 
 import { Expose, Transform } from 'class-transformer';
 import { Prisma } from '@prisma/client';
@@ -2177,11 +3019,9 @@ export class PartResponseDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\dto\update-part.dto.ts
-############################################################
+
+===== FILE: src\inventory\dto\update-part.dto.ts =====
 
 import { PartialType } from '@nestjs/swagger';
 import { CreatePartDto } from './create-part.dto';
@@ -2189,11 +3029,9 @@ import { CreatePartDto } from './create-part.dto';
 export class UpdatePartDto extends PartialType(CreatePartDto) {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\dto\update-stock.dto.ts
-############################################################
+
+===== FILE: src\inventory\dto\update-stock.dto.ts =====
 
 import { IsInt, Min } from 'class-validator';
 
@@ -2204,11 +3042,9 @@ export class UpdateStockDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\interfaces\inventory.repository.interface.ts
-############################################################
+
+===== FILE: src\inventory\interfaces\inventory.repository.interface.ts =====
 
 import { Part } from '@prisma/client';
 import { CreatePartDto } from '../dto/create-part.dto';
@@ -2227,11 +3063,9 @@ export interface IInventoryRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\inventory\repositories\inventory.prisma.repository.ts
-############################################################
+
+===== FILE: src\inventory\repositories\inventory.prisma.repository.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { IInventoryRepository } from '../interfaces/inventory.repository.interface';
@@ -2297,11 +3131,9 @@ export class InventoryPrismaRepository implements IInventoryRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\maintenance.controller.ts
-############################################################
+
+===== FILE: src\maintenance\maintenance.controller.ts =====
 
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { MaintenanceService } from './maintenance.service';
@@ -2338,11 +3170,9 @@ export class MaintenanceController {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\maintenance.cron.ts
-############################################################
+
+===== FILE: src\maintenance\maintenance.cron.ts =====
 
 import { Cron } from '@nestjs/schedule';
 import { Injectable } from '@nestjs/common';
@@ -2360,11 +3190,9 @@ export class MaintenanceCron {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\maintenance.jobs.ts
-############################################################
+
+===== FILE: src\maintenance\maintenance.jobs.ts =====
 
 import { Inject, Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -2386,11 +3214,9 @@ export class MaintenanceJobs {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\maintenance.module.ts
-############################################################
+
+===== FILE: src\maintenance\maintenance.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { MaintenanceService } from './maintenance.service';
@@ -2410,11 +3236,9 @@ import { MaintenanceRepository } from './repositories/maintenance.prisma.reposit
 })
 export class MaintenanceModule {}
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\maintenance.processor.ts
-############################################################
+
+===== FILE: src\maintenance\maintenance.processor.ts =====
 
 // src/maintenance/maintenance.processor.ts
 import { Worker } from 'bullmq';
@@ -2473,11 +3297,9 @@ new Worker<MaintenanceJobData>(
   { connection: redisConnection },
 );
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\maintenance.service.ts
-############################################################
+
+===== FILE: src\maintenance\maintenance.service.ts =====
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MaintenanceRepository } from './repositories/maintenance.prisma.repository';
@@ -2549,11 +3371,9 @@ export class MaintenanceService {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\dto\create-maintenance-rule.dto.ts
-############################################################
+
+===== FILE: src\maintenance\dto\create-maintenance-rule.dto.ts =====
 
 import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
@@ -2577,11 +3397,9 @@ export class CreateMaintenanceRuleDto {
   intervalMonths?: number; // e.g. 12
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\dto\maintenance-response.dto.ts
-############################################################
+
+===== FILE: src\maintenance\dto\maintenance-response.dto.ts =====
 
 import { Expose, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -2617,11 +3435,9 @@ export class MaintenanceRecordResponseDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\dto\record-maintenance.dto.ts
-############################################################
+
+===== FILE: src\maintenance\dto\record-maintenance.dto.ts =====
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
@@ -2660,11 +3476,9 @@ export class RecordMaintenanceDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\interfaces\maintenance.repository.interface.ts
-############################################################
+
+===== FILE: src\maintenance\interfaces\maintenance.repository.interface.ts =====
 
 import { MaintenanceRecord, MaintenanceRule, Service } from '@prisma/client';
 import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
@@ -2691,11 +3505,9 @@ export interface IMaintenanceRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\maintenance\repositories\maintenance.prisma.repository.ts
-############################################################
+
+===== FILE: src\maintenance\repositories\maintenance.prisma.repository.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service'; // Adjust path
@@ -2741,11 +3553,9 @@ export class MaintenanceRepository {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\orders.controller.ts
-############################################################
+
+===== FILE: src\orders\orders.controller.ts =====
 
 import { Controller, Get, Post, Body, Param, UseGuards, Request as Req } from '@nestjs/common';
 import type { Request } from 'express'; // Use type-only import
@@ -2775,11 +3585,9 @@ export class OrdersController {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\orders.module.ts
-############################################################
+
+===== FILE: src\orders\orders.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { OrdersService } from './orders.service';
@@ -2804,11 +3612,9 @@ import { OrdersPrismaRepository } from './repositories/orders.prisma.repository'
 export class OrdersModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\orders.service.spec.ts
-############################################################
+
+===== FILE: src\orders\orders.service.spec.ts =====
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
@@ -2876,11 +3682,9 @@ describe('OrdersService', () => {
 });
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\orders.service.ts
-############################################################
+
+===== FILE: src\orders\orders.service.ts =====
 
 import { 
   Injectable, 
@@ -2996,11 +3800,9 @@ export class OrdersService {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\dto\create-order.dto.ts
-############################################################
+
+===== FILE: src\orders\dto\create-order.dto.ts =====
 
 import { 
   IsNotEmpty, 
@@ -3038,11 +3840,9 @@ export class CreateOrderDto {
   items!: OrderItemDto[]; // The list of things to buy
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\dto\order-item.validator.ts
-############################################################
+
+===== FILE: src\orders\dto\order-item.validator.ts =====
 
 import {
   ValidatorConstraint,
@@ -3087,11 +3887,9 @@ export function IsInventoryOrService(validationOptions?: ValidationOptions) {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\dto\order-response.dto.ts
-############################################################
+
+===== FILE: src\orders\dto\order-response.dto.ts =====
 
 import { Expose, Transform, Type } from 'class-transformer';
 import { OrderStatus, Prisma } from '@prisma/client';
@@ -3178,11 +3976,9 @@ export class OrderResponseDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\dto\update-order-status.dto.ts
-############################################################
+
+===== FILE: src\orders\dto\update-order-status.dto.ts =====
 
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty } from 'class-validator';
@@ -3196,11 +3992,9 @@ export class UpdateOrderStatusDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\interfaces\orders.repository.interface.ts
-############################################################
+
+===== FILE: src\orders\interfaces\orders.repository.interface.ts =====
 
 import { Order, OrderStatus } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
@@ -3220,11 +4014,9 @@ export interface IOrdersRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\orders\repositories\orders.prisma.repository.ts
-############################################################
+
+===== FILE: src\orders\repositories\orders.prisma.repository.ts =====
 
 import {
   Injectable,
@@ -3370,11 +4162,9 @@ export class OrdersPrismaRepository implements IOrdersRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\prisma\prisma.module.ts
-############################################################
+
+===== FILE: src\prisma\prisma.module.ts =====
 
 import { Global, Module } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
@@ -3387,11 +4177,9 @@ import { PrismaService } from './prisma.service';
 export class PrismaModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\prisma\prisma.service.ts
-############################################################
+
+===== FILE: src\prisma\prisma.service.ts =====
 
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
@@ -3404,18 +4192,26 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
-
-    const adapter = new PrismaPg(pool);
-
+    // إحنا مش هننادي على super هنا بالـ adapter مباشرة
+    // هنخلي الـ adapter يتجهز جوه الـ constructor لضمان قراءة الـ env
     super({
       log: ['warn', 'error'],
     });
   }
 
   async onModuleInit() {
+    const connectionString = process.env.DATABASE_URL;
+    
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is not defined in environment variables');
+    }
+
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaPg(pool);
+    
+    // ربط الـ adapter بالـ client قبل الاتصال
+    (this as any).adapter = adapter; 
+
     await this.$connect();
   }
 
@@ -3425,11 +4221,8 @@ export class PrismaService
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\services.controller.ts
-############################################################
+===== FILE: src\services\services.controller.ts =====
 
 import {
   Controller,
@@ -3524,11 +4317,9 @@ export class ServicesController {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\services.module.ts
-############################################################
+
+===== FILE: src\services\services.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { ServicesService } from './services.service';
@@ -3552,11 +4343,9 @@ import { ServicesPrismaRepository } from './repositories/services.prisma.reposit
 export class ServicesModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\services.service.ts
-############################################################
+
+===== FILE: src\services\services.service.ts =====
 
 import {
   Inject,
@@ -3630,11 +4419,9 @@ export class ServicesService {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\dto\create-service.dto.ts
-############################################################
+
+===== FILE: src\services\dto\create-service.dto.ts =====
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
@@ -3683,11 +4470,9 @@ export class CreateServiceDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\dto\service-response.dto.ts
-############################################################
+
+===== FILE: src\services\dto\service-response.dto.ts =====
 
 import { Expose, Transform } from 'class-transformer';
 import { ServiceCategory, Prisma } from '@prisma/client';
@@ -3735,11 +4520,9 @@ export class ServiceResponseDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\dto\update-service.dto.ts
-############################################################
+
+===== FILE: src\services\dto\update-service.dto.ts =====
 
 import { PartialType } from '@nestjs/swagger';
 import { CreateServiceDto } from './create-service.dto';
@@ -3747,11 +4530,9 @@ import { CreateServiceDto } from './create-service.dto';
 export class UpdateServiceDto extends PartialType(CreateServiceDto) {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\interfaces\services.repository.interface.ts
-############################################################
+
+===== FILE: src\services\interfaces\services.repository.interface.ts =====
 
 import { Service, ServiceCategory } from '@prisma/client';
 import { CreateServiceDto } from '../dto/create-service.dto';
@@ -3774,11 +4555,9 @@ export interface IServicesRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\services\repositories\services.prisma.repository.ts
-############################################################
+
+===== FILE: src\services\repositories\services.prisma.repository.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { IServicesRepository } from '../interfaces/services.repository.interface';
@@ -3835,11 +4614,9 @@ export class ServicesPrismaRepository implements IServicesRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\users.controller.ts
-############################################################
+
+===== FILE: src\users\users.controller.ts =====
 
 import {
   Controller,
@@ -3942,11 +4719,9 @@ export class UsersController {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\users.module.ts
-############################################################
+
+===== FILE: src\users\users.module.ts =====
 
 import { Module } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -3970,11 +4745,9 @@ import { UsersPrismaRepository } from './repositories/users.prisma.repository';
 export class UsersModule {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\users.service.ts
-############################################################
+
+===== FILE: src\users\users.service.ts =====
 
 // src/users/users.service.ts
 import { Injectable, ConflictException } from '@nestjs/common';
@@ -4076,11 +4849,9 @@ async update(id: string, dto: UpdateUserDto) {
   }
 }
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\dto\create-user.dto.ts
-############################################################
+
+===== FILE: src\users\dto\create-user.dto.ts =====
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
@@ -4136,11 +4907,9 @@ export class CreateUserDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\dto\update-user.dto.ts
-############################################################
+
+===== FILE: src\users\dto\update-user.dto.ts =====
 
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { CreateUserDto } from './create-user.dto';
@@ -4150,11 +4919,9 @@ export class UpdateUserDto extends PartialType(
 ) {}
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\dto\user-response.dto.ts
-############################################################
+
+===== FILE: src\users\dto\user-response.dto.ts =====
 
 import { Expose } from 'class-transformer';
 import { UserRole } from '@prisma/client';
@@ -4193,11 +4960,9 @@ export class UserResponseDto {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\interfaces\users.repository.interface.ts
-############################################################
+
+===== FILE: src\users\interfaces\users.repository.interface.ts =====
 
 import { User, UserRole } from '@prisma/client';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -4215,11 +4980,9 @@ export interface IUsersRepository {
 }
 
 
-******************** END OF FILE ********************
 
-############################################################
-PATH: .\users\repositories\users.prisma.repository.ts
-############################################################
+
+===== FILE: src\users\repositories\users.prisma.repository.ts =====
 
 import { Injectable } from '@nestjs/common';
 import { IUsersRepository } from '../interfaces/users.repository.interface';
@@ -4265,4 +5028,3 @@ export class UsersPrismaRepository implements IUsersRepository {
 }
 
 
-******************** END OF FILE ********************
