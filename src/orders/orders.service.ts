@@ -1,8 +1,8 @@
-import { 
-  Injectable, 
-  BadRequestException, 
-  NotFoundException, 
-  ForbiddenException 
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -19,28 +19,32 @@ export class OrdersService {
     const isMyPersonal = car.userId === userContext.userId;
     const isMyFleet = car.organizationId === userContext.organizationId;
     if (!isMyPersonal && !isMyFleet) {
-      throw new ForbiddenException('You cannot order for a car you do not own.');
+      throw new ForbiddenException(
+        'You cannot order for a car you do not own.',
+      );
     }
 
     // 2. THE TRANSACTION (All or Nothing)
     return this.prisma.$transaction(async (tx) => {
       let totalAmount = 0;
-      const orderItemsData = [];
+      const orderItemsData: any[] = [];
 
       // 3. Process Items
       for (const item of dto.items) {
         let price = 0;
-        let finalPartId = null;
-        let finalServiceId = null;
+        let finalPartId: string | null = null;
+        let finalServiceId: string | null = null;
 
         // A. Handle PARTS
         if (item.partId) {
           const part = await tx.part.findUnique({ where: { id: item.partId } });
           if (!part) throw new NotFoundException(`Part ${item.partId} not found`);
-          
+
           // Stock Check
           if (part.quantity < item.quantity) {
-            throw new BadRequestException(`Insufficient stock for part: ${part.name}`);
+            throw new BadRequestException(
+              `Insufficient stock for part: ${part.name}`,
+            );
           }
 
           // DEDUCT STOCK
@@ -51,12 +55,15 @@ export class OrdersService {
 
           price = Number(part.price);
           finalPartId = part.id;
-        } 
+        }
         // B. Handle SERVICES
         else if (item.serviceId) {
-          const service = await tx.service.findUnique({ where: { id: item.serviceId } });
-          if (!service) throw new NotFoundException(`Service ${item.serviceId} not found`);
-          
+          const service = await tx.service.findUnique({
+            where: { id: item.serviceId },
+          });
+          if (!service)
+            throw new NotFoundException(`Service ${item.serviceId} not found`);
+
           price = Number(service.basePrice);
           finalServiceId = service.id;
         } else {
@@ -96,18 +103,18 @@ export class OrdersService {
     // If Admin/Manager, maybe logic differs, but here is basic User view
     return this.prisma.order.findMany({
       where: { userId: userContext.userId },
-      include: { 
+      include: {
         items: { include: { part: true, service: true } },
-        car: true 
+        car: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string) {
     return this.prisma.order.findUnique({
       where: { id },
-      include: { items: true, car: true }
+      include: { items: true, car: true },
     });
   }
 }

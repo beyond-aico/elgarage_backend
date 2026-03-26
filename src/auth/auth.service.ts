@@ -1,6 +1,6 @@
-// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { LoginDto, SignupDto } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
@@ -10,6 +10,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -27,28 +28,48 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  private async generateTokens(user: any) {
-    const payload = { 
-      sub: user.id, 
-      email: user.email, 
+  private async generateTokens(user: {
+    id: string;
+    email: string;
+    role: string;
+    organizationId?: string | null;
+  }) {
+    const payload = {
+      sub: user.id,
+      email: user.email,
       role: user.role,
-      organizationId: user.organizationId 
+      organizationId: user.organizationId,
     };
 
-    // FIX: Ensure secret is never undefined. 
-    // In production, ensure these ENV variables are set!
-    const atSecret = process.env.JWT_SECRET || 'super_secret_fallback';
-    const rtSecret = process.env.JWT_REFRESH_SECRET || 'super_refresh_secret_fallback';
+    // Fail fast if critical environment variables are missing
+    const atSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
+    if (!atSecret)
+      throw new Error(
+        'FATAL: JWT_ACCESS_SECRET is not defined in the environment.',
+      );
 
+    const rtSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!rtSecret)
+      throw new Error(
+        'FATAL: JWT_REFRESH_SECRET is not defined in the environment.',
+      );
+
+    // Dynamic expiration fetching from .env with safe defaults
+    const atExpiresIn =
+      this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m';
+    const rtExpiresIn =
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+
+    // FIX: Cast the options objects 'as any' to bypass the strict StringValue type check
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, { 
-        expiresIn: '15m', 
-        secret: atSecret 
-      }),
-      this.jwtService.signAsync(payload, { 
-        expiresIn: '7d', 
-        secret: rtSecret 
-      }),
+      this.jwtService.signAsync(payload, {
+        expiresIn: atExpiresIn,
+        secret: atSecret,
+      } as any),
+      this.jwtService.signAsync(payload, {
+        expiresIn: rtExpiresIn,
+        secret: rtSecret,
+      } as any),
     ]);
 
     return {
@@ -58,16 +79,15 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
-        organizationId: user.organizationId
-      }
+        organizationId: user.organizationId,
+      },
     };
   }
-async refresh(userId: string) {
-    // Simple refresh logic: verify user exists and issue new tokens
+
+  async refresh(userId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
-    
+
     return this.generateTokens(user);
   }
-
 }

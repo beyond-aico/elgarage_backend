@@ -1,6 +1,6 @@
 # --- Stage 1: Builder ---
 # Use Debian Slim instead of Alpine to avoid SSL/Prisma issues
-FROM node:18-slim AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # --- Stage 2: Production Runner ---
-FROM node:18-slim
+FROM node:20-slim
 
 # Install OpenSSL (Standard Debian package)
 RUN apt-get update -y && apt-get install -y openssl ca-certificates

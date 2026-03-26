@@ -1,9 +1,9 @@
-import { NestFactory, HttpAdapterHost } from '@nestjs/core'; // Import HttpAdapterHost
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { Logger } from 'nestjs-pino'; // Assuming you kept pino, otherwise use generic Logger
+import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -11,12 +11,22 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const configService = app.get(ConfigService);
-  // If you are using standard NestJS logger, use: const logger = new Logger('Bootstrap');
   const logger = app.get(Logger);
 
   app.use(helmet());
+
+  // --- CORS FIX ---
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  let allowedOrigins: string | string[] = 'http://localhost:3000'; // Safe fallback
+
+  if (corsOrigin) {
+    allowedOrigins = corsOrigin.includes(',')
+      ? corsOrigin.split(',').map((o) => o.trim())
+      : corsOrigin;
+  }
+
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN', '*'),
+    origin: allowedOrigins,
     credentials: true,
   });
 
@@ -54,13 +64,12 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-// قراءة البورت مباشرة من البيئة لضمان التوافق مع ريل واي
+  // قراءة البورت مباشرة من البيئة لضمان التوافق مع ريل واي
   const port = process.env.PORT || 3000;
-  
   await app.listen(port, '0.0.0.0');
-  
   console.log(`🚀 Server is listening on port: ${port}`);
-  logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);}
+  logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);
+}
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
 });
