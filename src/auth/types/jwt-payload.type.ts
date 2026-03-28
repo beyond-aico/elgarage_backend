@@ -1,6 +1,8 @@
 export interface JwtPayload {
   sub: string;
-  role: 'USER' | 'ADMIN';
+  email: string;
+  role: 'USER' | 'ADMIN' | 'ACCOUNT_MANAGER' | 'DRIVER';
+  organizationId?: string | null;
 }
 
 export interface RefreshJwtPayload {

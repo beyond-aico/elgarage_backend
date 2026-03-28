@@ -1,22 +1,50 @@
-import { NestFactory, HttpAdapterHost } from '@nestjs/core'; // Import HttpAdapterHost
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { Logger } from 'nestjs-pino'; // Assuming you kept pino, otherwise use generic Logger
+import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import rateLimit from 'express-rate-limit';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const configService = app.get(ConfigService);
-  // If you are using standard NestJS logger, use: const logger = new Logger('Bootstrap');
   const logger = app.get(Logger);
 
   app.use(helmet());
+
+  // Auth rate limiter — applied before the router so it fires on every
+  // /auth/* request regardless of versioning prefix
+  app.use(
+    '/api/v1/auth',
+    rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 20, // max 20 attempts per window per IP
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: {
+        statusCode: 429,
+        message: 'Too many requests, please try again later.',
+        error: 'Too Many Requests',
+      },
+    }),
+  );
+
+  // CORS
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  let allowedOrigins: string | string[] = 'http://localhost:3000';
+
+  if (corsOrigin) {
+    allowedOrigins = corsOrigin.includes(',')
+      ? corsOrigin.split(',').map((o) => o.trim())
+      : corsOrigin;
+  }
+
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN', '*'),
+    origin: allowedOrigins,
     credentials: true,
   });
 
@@ -54,13 +82,11 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-// قراءة البورت مباشرة من البيئة لضمان التوافق مع ريل واي
   const port = process.env.PORT || 3000;
-  
   await app.listen(port, '0.0.0.0');
-  
   console.log(`🚀 Server is listening on port: ${port}`);
-  logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);}
+  logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);
+}
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
 });

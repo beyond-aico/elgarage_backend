@@ -9,7 +9,7 @@ import {
   UseGuards,
   Query,
   Req,
-  NotFoundException, // <--- Added this import
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,7 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateOwnProfileDto, AdminUpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -47,54 +47,62 @@ export class UsersController {
 
   @Get()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'List all users' })
+  @ApiOperation({ summary: 'List all users (Admin only)' })
   @ApiQuery({ name: 'role', enum: UserRole, required: false })
   async findAll(@Query('role') role?: UserRole) {
     const users = await this.usersService.findAll(role);
-    return users.map((user) => new UserResponseDto(user));
+    return users.map((u) => new UserResponseDto(u));
   }
 
   @Get('profile')
-  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiOperation({ summary: 'Get own profile' })
   async getProfile(@Req() req: Request & { user: AuthUser }) {
     const user = await this.usersService.findOne(req.user.userId);
-    // FIX 1: Handle null case
     if (!user) throw new NotFoundException('Profile not found');
     return new UserResponseDto(user);
   }
 
   @Get(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Get any user details (Admin)' })
+  @ApiOperation({ summary: 'Get any user by ID (Admin only)' })
   async findOne(@Param('id') id: string) {
     const user = await this.usersService.findOne(id);
-    // FIX 2: Handle null case
     if (!user) throw new NotFoundException('User not found');
     return new UserResponseDto(user);
   }
 
+  /**
+   * Self-service profile update — accepts only name, phone, address, city, country.
+   * Email and role changes are intentionally excluded.
+   */
   @Patch('profile')
-  @ApiOperation({ summary: 'Update my profile' })
+  @ApiOperation({ summary: 'Update own profile (name, phone, address only)' })
   async updateProfile(
     @Req() req: Request & { user: AuthUser },
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() dto: UpdateOwnProfileDto,
   ) {
-    const user = await this.usersService.update(req.user.userId, updateUserDto);
+    const user = await this.usersService.updateProfile(req.user.userId, dto);
     return new UserResponseDto(user);
   }
 
+  /**
+   * Admin update — can modify email, role, and all profile fields.
+   */
   @Patch(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update any user (Admin)' })
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    const user = await this.usersService.update(id, updateUserDto);
+  @ApiOperation({
+    summary: 'Update any user including email/role (Admin only)',
+  })
+  async update(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
+    const user = await this.usersService.adminUpdate(id, dto);
     return new UserResponseDto(user);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Delete a user' })
+  @ApiOperation({ summary: 'Delete a user (Admin only)' })
   async remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+    await this.usersService.remove(id);
+    return { message: 'User deleted successfully' };
   }
 }

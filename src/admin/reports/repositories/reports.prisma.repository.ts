@@ -39,33 +39,36 @@ export class ReportsPrismaRepository implements IReportsRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics> {
-    const dateFilter =
-      startDate && endDate
-        ? {
-            createdAt: {
-              gte: startDate,
-              lte: endDate,
-            },
-          }
-        : {};
+    // Supports one-sided ranges: startDate-only and endDate-only both work.
+    const dateFilter: Prisma.OrderWhereInput = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate)
+        (dateFilter.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate)
+        (dateFilter.createdAt as Prisma.DateTimeFilter).lte = endDate;
+    }
 
-    const [users, cars, orders, revenueAgg, lowStock] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.car.count(),
-      this.prisma.order.count({ where: dateFilter }),
-      this.prisma.order.aggregate({
-        _sum: { totalPrice: true },
-        where: {
-          ...dateFilter,
-          status: { not: OrderStatus.CANCELLED },
-        },
-      }),
-      this.prisma.part.count({
-        where: {
-          quantity: { lte: 5 },
-        },
-      }),
-    ]);
+    const [users, cars, orders, revenueAgg, lowStockResult] = await Promise.all(
+      [
+        this.prisma.user.count(),
+        this.prisma.car.count(),
+        this.prisma.order.count({ where: dateFilter }),
+        this.prisma.order.aggregate({
+          _sum: { totalPrice: true },
+          where: {
+            ...dateFilter,
+            status: { not: OrderStatus.CANCELLED },
+          },
+        }),
+        // Use each part's own lowStockThreshold — same logic as getLowStockParts().
+        this.prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*)::int AS count FROM "Part"
+        WHERE "lowStockThreshold" IS NOT NULL
+          AND quantity <= "lowStockThreshold"
+      `,
+      ],
+    );
 
     return {
       users,
@@ -74,17 +77,20 @@ export class ReportsPrismaRepository implements IReportsRepository {
       revenue: revenueAgg._sum.totalPrice
         ? Number(revenueAgg._sum.totalPrice)
         : 0,
-      lowStockCount: lowStock,
+      lowStockCount: Number(lowStockResult[0]?.count ?? 0),
     };
   }
 
-  async getLowStockParts(threshold: number = 5): Promise<Part[]> {
-    return this.prisma.part.findMany({
-      where: {
-        quantity: { lte: threshold },
-      },
-      orderBy: { quantity: 'asc' },
-    });
+  async getLowStockParts(): Promise<Part[]> {
+    // Compare each part's quantity against its own configured threshold.
+    // The IS NOT NULL guard makes the null-exclusion behaviour explicit —
+    // parts without a configured threshold are intentionally skipped.
+    return this.prisma.$queryRaw<Part[]>`
+      SELECT * FROM "Part"
+      WHERE "lowStockThreshold" IS NOT NULL
+        AND quantity <= "lowStockThreshold"
+      ORDER BY quantity ASC
+    `;
   }
 
   async getTopSellingServices(limit: number = 5): Promise<any[]> {

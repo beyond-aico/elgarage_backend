@@ -1,4 +1,6 @@
 export interface AuthUser {
   userId: string;
-  role: 'USER' | 'ADMIN';
+  email: string;
+  role: 'USER' | 'ADMIN' | 'ACCOUNT_MANAGER' | 'DRIVER';
+  organizationId?: string | null;
 }

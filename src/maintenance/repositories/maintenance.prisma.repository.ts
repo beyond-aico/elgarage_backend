@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service'; // Adjust path
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
 
 @Injectable()
@@ -10,14 +10,14 @@ export class MaintenanceRepository {
     return this.prisma.maintenanceRule.create({
       data: {
         serviceId: data.serviceId,
-        modelId: data.modelId, // Crucial: Link to Car Model
-        intervalKm: data.intervalKm?? null,
-        intervalMonths: data.intervalMonths?? null,
+        modelId: data.modelId,
+        intervalKm: data.intervalKm ?? null,
+        intervalMonths: data.intervalMonths ?? null,
       },
     });
   }
 
-  // Find all rules for a specific car model (The "DNA" fetch)
+  /** Find all rules for a specific car model (the "DNA" fetch). */
   async findRulesByModel(modelId: string) {
     return this.prisma.maintenanceRule.findMany({
       where: { modelId },
@@ -25,14 +25,11 @@ export class MaintenanceRepository {
     });
   }
 
-  // Find a specific rule (e.g., Oil Rule for Corolla)
+  /** Find a specific rule by composite key. */
   async findOneRule(serviceId: string, modelId: string) {
     return this.prisma.maintenanceRule.findUnique({
       where: {
-        serviceId_modelId: { // PRISMA SYNTAX FOR COMPOSITE KEY
-          serviceId,
-          modelId,
-        },
+        serviceId_modelId: { serviceId, modelId },
       },
     });
   }
