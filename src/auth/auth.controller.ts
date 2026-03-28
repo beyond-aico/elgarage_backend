@@ -1,10 +1,9 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto'; // You might want to rename this DTO to SignupDto later, but keep for now
+import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { AuthGuard } from '@nestjs/passport'; // or your JwtAuthGuard
-import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
-// import { SignupDto } from './dto/auth.dto'; // Use the correct DTO import if you switched
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -13,10 +12,8 @@ export class AuthController {
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
-  // @ApiBody({ type: SignupDto }) 
-  register(@Body() dto: any) { // Use 'any' temporarily if DTOs are fighting, or import SignupDto
-    // FIX: Change .register() to .signup()
-    return this.authService.signup(dto); 
+  register(@Body() dto: RegisterDto) {
+    return this.authService.signup(dto);
   }
 
   @Post('login')
@@ -26,11 +23,11 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @UseGuards(AuthGuard('jwt-refresh')) // Ensure you have this guard or remove if not using refresh tokens yet
+  @UseGuards(AuthGuard('jwt-refresh'))
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Refresh access token' })
-  refresh(@Body('userId') userId: string) {
-    // FIX: You need to add this method to AuthService (see Fix 2)
-    return this.authService.refresh(userId); 
+  refresh(@Req() req: { user: { userId: string } }) {
+    // userId comes from RefreshStrategy.validate(), NOT from the request body
+    return this.authService.refresh(req.user.userId);
   }
 }

@@ -2,8 +2,29 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
-import { LoginDto, SignupDto } from './dto/auth.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+
+/** Parse a simple duration string like "15m", "7d", "24h" into milliseconds. */
+function parseDurationMs(value: string): number {
+  const unit = value.slice(-1);
+  const amount = parseInt(value.slice(0, -1), 10);
+  if (isNaN(amount)) throw new Error(`Invalid duration: ${value}`);
+  switch (unit) {
+    case 's':
+      return amount * 1_000;
+    case 'm':
+      return amount * 60 * 1_000;
+    case 'h':
+      return amount * 60 * 60 * 1_000;
+    case 'd':
+      return amount * 24 * 60 * 60 * 1_000;
+    default:
+      throw new Error(`Unsupported duration unit "${unit}" in: ${value}`);
+  }
+}
 
 @Injectable()
 export class AuthService {
@@ -11,10 +32,15 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private prisma: PrismaService,
   ) {}
 
-  async signup(dto: SignupDto) {
-    const user = await this.usersService.create(dto);
+  async signup(dto: RegisterDto) {
+    const user = await this.usersService.create({
+      email: dto.email,
+      password: dto.password,
+      name: dto.name,
+    });
     return this.generateTokens(user);
   }
 
@@ -25,6 +51,15 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
+    return this.generateTokens(user);
+  }
+
+  async refresh(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    // Token string match + expiry were already validated in RefreshStrategy.validate().
+    // If we reach here the token is genuine — issue a new pair (rotation).
     return this.generateTokens(user);
   }
 
@@ -41,7 +76,6 @@ export class AuthService {
       organizationId: user.organizationId,
     };
 
-    // Fail fast if critical environment variables are missing
     const atSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
     if (!atSecret)
       throw new Error(
@@ -54,13 +88,11 @@ export class AuthService {
         'FATAL: JWT_REFRESH_SECRET is not defined in the environment.',
       );
 
-    // Dynamic expiration fetching from .env with safe defaults
     const atExpiresIn =
       this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m';
     const rtExpiresIn =
       this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
 
-    // FIX: Cast the options objects 'as any' to bypass the strict StringValue type check
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         expiresIn: atExpiresIn,
@@ -72,9 +104,20 @@ export class AuthService {
       } as any),
     ]);
 
+    // Hash before storing — raw token stays with the client only,
+    // DB compromise does not yield usable tokens
+    const tokenHash = await bcrypt.hash(refreshToken, 10);
+    const expiresAt = new Date(Date.now() + parseDurationMs(rtExpiresIn));
+
+    await this.prisma.refreshToken.upsert({
+      where: { userId: user.id },
+      update: { token: tokenHash, expiresAt },
+      create: { userId: user.id, token: tokenHash, expiresAt },
+    });
+
     return {
       accessToken,
-      refreshToken,
+      refreshToken, // raw token returned to client — never stored
       user: {
         id: user.id,
         email: user.email,
@@ -82,12 +125,5 @@ export class AuthService {
         organizationId: user.organizationId,
       },
     };
-  }
-
-  async refresh(userId: string) {
-    const user = await this.usersService.findById(userId);
-    if (!user) throw new UnauthorizedException('User not found');
-
-    return this.generateTokens(user);
   }
 }
