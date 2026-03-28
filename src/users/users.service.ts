@@ -57,7 +57,10 @@ export class UsersService {
     });
   }
 
-  private async createCorporateUser(dto: SignupDto, hash: string): Promise<SafeUser> {
+  private async createCorporateUser(
+    dto: SignupDto,
+    hash: string,
+  ): Promise<SafeUser> {
     return this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {
