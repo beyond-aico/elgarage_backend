@@ -7,6 +7,9 @@ CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPL
 -- CreateEnum
 CREATE TYPE "ServiceCategory" AS ENUM ('FLUIDS', 'FILTERS', 'BRAKES', 'IGNITION', 'ENGINE', 'SUSPENSION', 'WHEELS_TIRES', 'ELECTRICAL', 'AC_HEATING', 'BODY', 'INSPECTION', 'OTHER');
 
+-- CreateEnum
+CREATE TYPE "FuelType" AS ENUM ('BENZINE_80', 'BENZINE_92', 'BENZINE_95', 'DIESEL');
+
 -- CreateTable
 CREATE TABLE "Organization" (
     "id" TEXT NOT NULL,
@@ -75,10 +78,28 @@ CREATE TABLE "Car" (
     "mileageKm" INTEGER NOT NULL,
     "plateNumber" TEXT NOT NULL,
     "color" TEXT NOT NULL,
+    "isFleetVehicle" BOOLEAN NOT NULL DEFAULT false,
+    "barcode" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Car_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "FuelLog" (
+    "id" TEXT NOT NULL,
+    "carId" TEXT NOT NULL,
+    "driverId" TEXT NOT NULL,
+    "odometerKms" INTEGER NOT NULL,
+    "fuelType" "FuelType" NOT NULL,
+    "liters" DOUBLE PRECISION NOT NULL,
+    "totalCost" DOUBLE PRECISION NOT NULL,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "FuelLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -167,7 +188,9 @@ CREATE TABLE "OrderItem" (
 -- CreateTable
 CREATE TABLE "_CarModelToPart" (
     "A" TEXT NOT NULL,
-    "B" TEXT NOT NULL
+    "B" TEXT NOT NULL,
+
+    CONSTRAINT "_CarModelToPart_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateIndex
@@ -186,10 +209,19 @@ CREATE UNIQUE INDEX "CarBrand_name_key" ON "CarBrand"("name");
 CREATE UNIQUE INDEX "CarModel_name_brandId_key" ON "CarModel"("name", "brandId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Car_vin_key" ON "Car"("vin");
+CREATE UNIQUE INDEX "Car_plateNumber_key" ON "Car"("plateNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Car_plateNumber_key" ON "Car"("plateNumber");
+CREATE UNIQUE INDEX "Car_barcode_key" ON "Car"("barcode");
+
+-- CreateIndex
+CREATE INDEX "FuelLog_carId_idx" ON "FuelLog"("carId");
+
+-- CreateIndex
+CREATE INDEX "FuelLog_driverId_idx" ON "FuelLog"("driverId");
+
+-- CreateIndex
+CREATE INDEX "FuelLog_createdAt_idx" ON "FuelLog"("createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MaintenanceRule_serviceId_modelId_key" ON "MaintenanceRule"("serviceId", "modelId");
@@ -202,9 +234,6 @@ CREATE INDEX "MaintenanceRecord_serviceId_idx" ON "MaintenanceRecord"("serviceId
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Part_sku_key" ON "Part"("sku");
-
--- CreateIndex
-CREATE UNIQUE INDEX "_CarModelToPart_AB_unique" ON "_CarModelToPart"("A", "B");
 
 -- CreateIndex
 CREATE INDEX "_CarModelToPart_B_index" ON "_CarModelToPart"("B");
@@ -226,6 +255,12 @@ ALTER TABLE "Car" ADD CONSTRAINT "Car_organizationId_fkey" FOREIGN KEY ("organiz
 
 -- AddForeignKey
 ALTER TABLE "Car" ADD CONSTRAINT "Car_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "CarModel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "FuelLog" ADD CONSTRAINT "FuelLog_carId_fkey" FOREIGN KEY ("carId") REFERENCES "Car"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "FuelLog" ADD CONSTRAINT "FuelLog_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "MaintenanceRule" ADD CONSTRAINT "MaintenanceRule_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "Service"("id") ON DELETE CASCADE ON UPDATE CASCADE;
