@@ -1,7 +1,7 @@
 export interface JwtPayload {
   sub: string;
   email: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'ADMIN' | 'ACCOUNT_MANAGER' | 'DRIVER';
   organizationId?: string | null;
 }
 

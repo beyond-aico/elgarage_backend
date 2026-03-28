@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import type ms from 'ms';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,7 +8,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 
-/** Parse a simple duration string like "15m", "7d", "24h" into milliseconds. */
+/** Parse a simple duration string like "15m", "7d", "24h", "1w" into milliseconds. */
 function parseDurationMs(value: string): number {
   const unit = value.slice(-1);
   const amount = parseInt(value.slice(0, -1), 10);
@@ -21,6 +22,8 @@ function parseDurationMs(value: string): number {
       return amount * 60 * 60 * 1_000;
     case 'd':
       return amount * 24 * 60 * 60 * 1_000;
+    case 'w':
+      return amount * 7 * 24 * 60 * 60 * 1_000;
     default:
       throw new Error(`Unsupported duration unit "${unit}" in: ${value}`);
   }
@@ -36,31 +39,44 @@ export class AuthService {
   ) {}
 
   async signup(dto: RegisterDto) {
-    const user = await this.usersService.create({
+    const created = await this.usersService.create({
       email: dto.email,
       password: dto.password,
       name: dto.name,
     });
-    return this.generateTokens(user);
+    return this.generateTokens({
+      id: created.id,
+      email: created.email,
+      role: created.role,
+      organizationId: created.organizationId ?? null,
+    });
   }
 
   async login(dto: LoginDto) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const user = await this.usersService.findByEmailWithPassword(dto.email);
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    return this.generateTokens(user);
+    return this.generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId ?? null,
+    });
   }
 
   async refresh(userId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
 
-    // Token string match + expiry were already validated in RefreshStrategy.validate().
-    // If we reach here the token is genuine — issue a new pair (rotation).
-    return this.generateTokens(user);
+    return this.generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId ?? null,
+    });
   }
 
   private async generateTokens(user: {
@@ -88,24 +104,24 @@ export class AuthService {
         'FATAL: JWT_REFRESH_SECRET is not defined in the environment.',
       );
 
-    const atExpiresIn =
-      this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m';
-    const rtExpiresIn =
-      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+    const atExpiresIn = (this.configService.get<string>(
+      'JWT_ACCESS_EXPIRES_IN',
+    ) || '15m') as ms.StringValue;
+    const rtExpiresIn = (this.configService.get<string>(
+      'JWT_REFRESH_EXPIRES_IN',
+    ) || '7d') as ms.StringValue;
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         expiresIn: atExpiresIn,
         secret: atSecret,
-      } as any),
+      }),
       this.jwtService.signAsync(payload, {
         expiresIn: rtExpiresIn,
         secret: rtSecret,
-      } as any),
+      }),
     ]);
 
-    // Hash before storing — raw token stays with the client only,
-    // DB compromise does not yield usable tokens
     const tokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date(Date.now() + parseDurationMs(rtExpiresIn));
 
@@ -117,7 +133,7 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken, // raw token returned to client — never stored
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,

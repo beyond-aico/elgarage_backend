@@ -1,34 +1,55 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { MaintenanceService } from './maintenance.service';
 import { CreateMaintenanceRuleDto } from './dto/create-maintenance-rule.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard'; // Assuming you have this
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { AuthUser } from '../auth/types/auth-user.type';
 
-@Controller('maintenance')
+@ApiTags('Maintenance')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@Controller('maintenance')
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}
 
-  // 1. Admin creates "DNA" (Rules)
-  // Only Admins or Managers should define rules
-  // @UseGuards(RolesGuard)
-  // @Roles(UserRole.ADMIN) 
+  /** Admin creates a maintenance rule ("DNA") for a car model + service pair. */
   @Post('rules')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create a maintenance rule (Admin only)' })
   createRule(@Body() dto: CreateMaintenanceRuleDto) {
     return this.maintenanceService.createRule(dto);
   }
 
-  // 2. Get Rules for a specific Model (e.g. "What is the schedule for a Corolla?")
+  /** List all maintenance rules for a specific car model. */
   @Get('rules/model/:modelId')
+  @ApiOperation({ summary: 'Get maintenance rules for a car model' })
   getRulesByModel(@Param('modelId') modelId: string) {
     return this.maintenanceService.getRulesForModel(modelId);
   }
 
-  // 3. THE SMART ENDPOINT: Get Status for MY Car
+  /**
+   * Get the health status (due / overdue / OK) for a specific car.
+   * Access: personal owner, org fleet member, ADMIN. Everyone else → 403.
+   */
   @Get('status/:carId')
-  getCarStatus(@Param('carId') carId: string) {
-    return this.maintenanceService.getCarMaintenanceStatus(carId);
+  @ApiOperation({ summary: 'Get maintenance health status for a car' })
+  getCarStatus(
+    @Req() req: Request & { user: AuthUser },
+    @Param('carId') carId: string,
+  ) {
+    return this.maintenanceService.getCarMaintenanceStatus(carId, req.user);
   }
 }

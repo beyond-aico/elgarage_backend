@@ -39,7 +39,7 @@ export interface IReportsRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics>;
-  getLowStockParts(threshold?: number): Promise<Part[]>;
+  getLowStockParts(): Promise<Part[]>;
   getTopSellingServices(limit?: number): Promise<any[]>;
   getFleetDashboardKpis(
     startDate?: Date,

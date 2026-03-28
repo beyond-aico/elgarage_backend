@@ -27,6 +27,9 @@ export class UserResponseDto {
   role!: UserRole;
 
   @Expose()
+  organizationId!: string | null;
+
+  @Expose()
   createdAt!: Date;
 
   constructor(partial: Partial<UserResponseDto>) {

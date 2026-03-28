@@ -1,3 +1,14 @@
+/**
+ * Standalone XOR validator for reuse in other DTOs.
+ *
+ * OrderItemDto enforces XOR directly via two @ValidateIf phantom-field guards
+ * (_xorGuardNeither and _xorGuardBoth). This decorator can be used on any
+ * other DTO that needs the same "exactly one of partId/serviceId" constraint.
+ *
+ * Usage:
+ *   @IsPartOrService()
+ *   someField: OrderItemShape;
+ */
 import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
@@ -6,36 +17,36 @@ import {
 } from 'class-validator';
 
 interface ItemInput {
-  inventoryId?: string;
+  partId?: string;
   serviceId?: string;
 }
 
-@ValidatorConstraint({ name: 'InventoryOrService', async: false })
-export class InventoryOrServiceConstraint implements ValidatorConstraintInterface {
-  validate(value: any) {
-    if (!value) return false;
+@ValidatorConstraint({ name: 'PartOrService', async: false })
+export class PartOrServiceConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown) {
+    if (!value || typeof value !== 'object') return false;
 
     const item = value as ItemInput;
-    const hasInventory = !!item.inventoryId;
+    const hasPart = !!item.partId;
     const hasService = !!item.serviceId;
 
-    // XOR logic: (A and !B) or (!A and B)
-    return (hasInventory && !hasService) || (!hasInventory && hasService);
+    return (hasPart && !hasService) || (!hasPart && hasService);
   }
 
   defaultMessage() {
-    return 'Item must provide either an inventoryId or a serviceId, but not both.';
+    return 'Item must provide either a partId or a serviceId, but not both.';
   }
 }
 
-export function IsInventoryOrService(validationOptions?: ValidationOptions) {
-  return function (target: new (...args: any[]) => any): void {
+export function IsPartOrService(validationOptions?: ValidationOptions) {
+  return function (target: object, propertyName: string): void {
     registerDecorator({
-      target: target,
-      propertyName: '',
-      ...(validationOptions && { options: validationOptions }),
+      target: (target as { constructor: new (...args: unknown[]) => unknown })
+        .constructor,
+      propertyName,
+      options: validationOptions,
       constraints: [],
-      validator: InventoryOrServiceConstraint,
+      validator: PartOrServiceConstraint,
     });
   };
 }

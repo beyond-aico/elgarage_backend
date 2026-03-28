@@ -20,14 +20,9 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 import { UserRole } from '@prisma/client';
 import { GetAnalyticsFilterDto } from './dto/get-analytics-filter.dto';
+import { AuthUser } from '../auth/types/auth-user.type';
 
-// 👈 Now extends Express Request properly
-interface AuthRequest extends Request {
-  user: {
-    id: string;
-    role: UserRole;
-  };
-}
+type AuthRequest = Request & { user: AuthUser };
 
 @ApiTags('Fleet')
 @ApiBearerAuth()
@@ -58,7 +53,7 @@ export class FleetController {
     @Req() req: AuthRequest,
     @Body() dto: CreateFuelLogDto,
   ): Promise<any> {
-    const driverId = req.user.id;
+    const driverId = req.user.userId;
 
     return this.fleetService.addFuelLog(driverId, dto);
   }
