@@ -1,5 +1,6 @@
 import { FuelLog } from '@prisma/client';
 import { CreateFuelLogDto } from '../dto/create-fuel-log.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export const FLEET_REPOSITORY = 'FLEET_REPOSITORY';
 
@@ -45,7 +46,6 @@ export interface VehicleCostAnalyticsRaw {
   };
 }
 
-// 4. Define the aggregated Driver Analytics payload
 export interface DriverCostAnalyticsRaw {
   item: {
     driverId: string;
@@ -63,7 +63,22 @@ export interface DriverCostAnalyticsRaw {
   };
 }
 
-// 5. The fully typed Interface
+/**
+ * A single entry in the odometer / fuel history for a vehicle.
+ * Returned by getFuelLogHistory ordered by createdAt ASC so callers
+ * see the odometer reading progressing monotonically over time.
+ */
+export interface OdometerHistoryEntry {
+  id: string;
+  odometerKms: number;
+  fuelType: string;
+  liters: number;
+  totalCost: number;
+  notes: string | null;
+  driverName: string | null;
+  createdAt: Date;
+}
+
 export interface IFleetRepository {
   findCarByBarcode(barcode: string): Promise<CarWithModelDetails | null>;
 
@@ -74,10 +89,6 @@ export interface IFleetRepository {
     dto: CreateFuelLogDto,
   ): Promise<FuelLog>;
 
-  getCostAnalyticsByVehicle(): Promise<VehicleCostAnalyticsRaw[]>;
-
-  getCostAnalyticsByDriver(): Promise<DriverCostAnalyticsRaw[]>;
-
   getCostAnalyticsByVehicle(
     startDate?: Date,
     endDate?: Date,
@@ -87,4 +98,13 @@ export interface IFleetRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DriverCostAnalyticsRaw[]>;
+
+  /**
+   * Paginated, chronological fuel-log history for a single vehicle.
+   * Every row includes the odometer reading, fuel data, and the driver's name.
+   */
+  getFuelLogHistory(
+    carId: string,
+    pagination: PaginationDto,
+  ): Promise<OdometerHistoryEntry[]>;
 }

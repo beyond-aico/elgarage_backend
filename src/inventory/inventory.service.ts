@@ -43,7 +43,9 @@ export class InventoryService {
     if (dto.sku) {
       const duplicate = await this.inventoryRepository.findBySku(dto.sku);
       if (duplicate && duplicate.id !== id) {
-        throw new ConflictException(`Part with SKU "${dto.sku}" already exists`);
+        throw new ConflictException(
+          `Part with SKU "${dto.sku}" already exists`,
+        );
       }
     }
 
@@ -52,6 +54,6 @@ export class InventoryService {
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.inventoryRepository.delete(id);
+    return this.inventoryRepository.softDelete(id);
   }
 }

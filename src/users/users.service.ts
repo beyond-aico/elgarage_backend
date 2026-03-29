@@ -1,137 +1,98 @@
-import { Injectable, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, ConflictException, Inject } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { SignupDto } from '../auth/dto/auth.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateOwnProfileDto, AdminUpdateUserDto } from './dto/update-user.dto';
-
-/** Fields that are safe to return to any caller. Password is never included. */
-const SAFE_USER_SELECT = {
-  id: true,
-  email: true,
-  name: true,
-  phone: true,
-  address: true,
-  city: true,
-  country: true,
-  role: true,
-  organizationId: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
-type SafeUser = Omit<User, 'password'>;
+import {
+  IUsersRepository,
+  USERS_REPOSITORY,
+  SafeUser,
+} from './interfaces/users.repository.interface';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @Inject(USERS_REPOSITORY)
+    private readonly usersRepo: IUsersRepository,
+  ) {}
 
-  async create(dto: SignupDto): Promise<SafeUser> {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-    if (existingUser) throw new ConflictException('Email already in use');
+  // ─── ADMIN FLOW (Called by UsersController) ─────────────────────────────
+
+  /**
+   * Admin creation flow. Allows setting explicit roles and profile data
+   * right at the point of creation.
+   */
+  async create(dto: CreateUserDto): Promise<SafeUser> {
+    await this.checkEmailUniqueness(dto.email);
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    return this.usersRepo.adminCreateUser(dto, hashedPassword);
+  }
+
+  // ─── PUBLIC REGISTRATION FLOW (Called by AuthService) ───────────────────
+
+  /**
+   * Public registration flow. Handles standard user creation as well as
+   * B2B organization creation if corporate fields are provided.
+   */
+  async registerPublicUser(dto: SignupDto): Promise<SafeUser> {
+    await this.checkEmailUniqueness(dto.email);
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     if (dto.organizationName) {
-      return this.createCorporateUser(dto, hashedPassword);
+      return this.usersRepo.createCorporateUserWithOrg(dto, hashedPassword);
     } else {
-      return this.createNormalUser(dto, hashedPassword);
+      return this.usersRepo.createNormalUser(dto, hashedPassword);
     }
   }
 
-  private async createNormalUser(
-    dto: SignupDto,
-    hash: string,
-  ): Promise<SafeUser> {
-    return this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hash,
-        name: dto.name,
-        phone: dto.phone ?? null,
-        role: UserRole.USER,
-      },
-      select: SAFE_USER_SELECT,
-    });
-  }
-
-  private async createCorporateUser(
-    dto: SignupDto,
-    hash: string,
-  ): Promise<SafeUser> {
-    return this.prisma.$transaction(async (tx) => {
-      const org = await tx.organization.create({
-        data: {
-          name: dto.organizationName!,
-          taxId: dto.taxId ?? null,
-        },
-      });
-
-      return tx.user.create({
-        data: {
-          email: dto.email,
-          password: hash,
-          name: dto.name,
-          phone: dto.phone ?? null,
-          role: UserRole.ACCOUNT_MANAGER,
-          organizationId: org.id,
-        },
-        select: SAFE_USER_SELECT,
-      });
-    });
-  }
+  // ─── DATA RETRIEVAL ──────────────────────────────────────────────────────
 
   /**
    * Used ONLY by AuthService for login — must include password for bcrypt.compare.
-   * Never expose the return value of this method to a controller response.
+   * Never expose the return value of this method directly to a controller response.
    */
   async findByEmailWithPassword(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { email },
-      include: { organization: true },
-    });
+    return this.usersRepo.findByEmailWithPassword(email);
   }
 
   async findById(id: string): Promise<SafeUser | null> {
-    return this.prisma.user.findUnique({
-      where: { id },
-      select: SAFE_USER_SELECT,
-    });
-  }
-
-  async findAll(role?: UserRole): Promise<SafeUser[]> {
-    return this.prisma.user.findMany({
-      where: role ? { role } : undefined,
-      select: SAFE_USER_SELECT,
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.usersRepo.findById(id);
   }
 
   async findOne(id: string): Promise<SafeUser | null> {
-    return this.findById(id);
+    return this.usersRepo.findById(id);
   }
 
-  /** Self-service profile update — only non-sensitive fields, no email/role. */
+  async findAll(role?: UserRole): Promise<SafeUser[]> {
+    return this.usersRepo.findAll(role);
+  }
+
+  // ─── UPDATES & DELETION ──────────────────────────────────────────────────
+
+  /** Self-service profile update — non-sensitive fields only. */
   async updateProfile(id: string, dto: UpdateOwnProfileDto): Promise<SafeUser> {
-    return this.prisma.user.update({
-      where: { id },
-      data: dto,
-      select: SAFE_USER_SELECT,
-    });
+    return this.usersRepo.updateProfile(id, dto);
   }
 
   /** Admin-only update — can change email, role, and all profile fields. */
   async adminUpdate(id: string, dto: AdminUpdateUserDto): Promise<SafeUser> {
-    return this.prisma.user.update({
-      where: { id },
-      data: dto,
-      select: SAFE_USER_SELECT,
-    });
+    return this.usersRepo.adminUpdate(id, dto);
   }
 
+  /** Soft-delete: stamps deletedAt, keeps the row for referential integrity. */
   async remove(id: string): Promise<void> {
-    await this.prisma.user.delete({ where: { id } });
+    await this.usersRepo.softDelete(id);
+  }
+
+  // ─── HELPERS ─────────────────────────────────────────────────────────────
+
+  private async checkEmailUniqueness(email: string): Promise<void> {
+    const existingUser = await this.usersRepo.findByEmailWithPassword(email);
+    if (existingUser) {
+      throw new ConflictException('Email already in use');
+    }
   }
 }

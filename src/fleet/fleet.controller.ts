@@ -6,8 +6,14 @@ import {
   UseGuards,
   Req,
   Query,
+  Param,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { FleetService } from './fleet.service';
@@ -20,6 +26,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 import { UserRole } from '@prisma/client';
 import { GetAnalyticsFilterDto } from './dto/get-analytics-filter.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { AuthUser } from '../auth/types/auth-user.type';
 
 type AuthRequest = Request & { user: AuthUser };
@@ -31,7 +38,8 @@ type AuthRequest = Request & { user: AuthUser };
 export class FleetController {
   constructor(private readonly fleetService: FleetService) {}
 
-  // DRIVER ENDPOINTS
+  // ── DRIVER ENDPOINTS ──────────────────────────────────────────────────────
+
   @Post('auth-barcode')
   @Roles(UserRole.DRIVER)
   @ApiOperation({
@@ -54,13 +62,35 @@ export class FleetController {
     @Body() dto: CreateFuelLogDto,
   ): Promise<any> {
     const driverId = req.user.userId;
-
     return this.fleetService.addFuelLog(driverId, dto);
   }
 
-  // MANAGER ENDPOINTS
+  // ── MANAGER / ADMIN ENDPOINTS ─────────────────────────────────────────────
+
+  /**
+   * Chronological odometer / fuel history for a single fleet vehicle.
+   * Exposes the underlying FuelLog event log so managers can audit every
+   * recorded fill-up and see how the odometer reading has progressed over time.
+   * Car.mileageKm is the denormalised current value; this is the source of truth.
+   */
+  @Get('logs/:carId/history')
+  @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
+  @ApiParam({ name: 'carId', description: 'UUID of the fleet vehicle' })
+  @ApiOperation({
+    summary: 'Odometer history for a fleet vehicle',
+    description:
+      'Returns paginated fuel logs ordered oldest-first. ' +
+      'Use skip/take for pagination.',
+  })
+  async getOdometerHistory(
+    @Param('carId') carId: string,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.fleetService.getOdometerHistory(carId, pagination);
+  }
+
   @Get('analytics/vehicles')
-  @Roles(UserRole.ACCOUNT_MANAGER)
+  @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Fleet fuel cost analytics by vehicle',
     description:
@@ -71,7 +101,7 @@ export class FleetController {
   }
 
   @Get('analytics/drivers')
-  @Roles(UserRole.ACCOUNT_MANAGER)
+  @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Fleet fuel cost analytics by driver',
     description:

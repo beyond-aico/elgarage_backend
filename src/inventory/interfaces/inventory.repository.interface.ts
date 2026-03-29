@@ -11,5 +11,5 @@ export interface IInventoryRepository {
   findById(id: string): Promise<Part | null>;
   findBySku(sku: string): Promise<Part | null>;
   update(id: string, data: UpdatePartDto): Promise<Part>;
-  delete(id: string): Promise<void>;
+  softDelete(id: string): Promise<void>;
 }

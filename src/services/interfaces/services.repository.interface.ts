@@ -15,5 +15,5 @@ export interface IServicesRepository {
   findById(id: string): Promise<Service | null>;
   findByName(name: string): Promise<Service | null>;
   update(id: string, data: UpdateServiceDto): Promise<Service>;
-  delete(id: string): Promise<void>;
+  softDelete(id: string): Promise<void>;
 }

@@ -13,14 +13,21 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { QueueModule } from './common/queues/queue.module';
 import { AdminModule } from './admin/admin.module';
 import { FleetModule } from './fleet/fleet.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
-// لا تنسى استيراد الـ AppController والـ AppService
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 const moduleMetadata: ModuleMetadata = {
   imports: [
+    // ConfigModule first — other modules may read env vars at bootstrap
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    // NotificationsModule before any module whose providers use NotificationsService
+    NotificationsModule,
     PrismaModule,
+    QueueModule,
     AuthModule,
     UsersModule,
     CarsModule,
@@ -29,12 +36,8 @@ const moduleMetadata: ModuleMetadata = {
     ServicesModule,
     OrdersModule,
     ScheduleModule.forRoot(),
-    QueueModule,
     AdminModule,
     FleetModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
 
     LoggerModule.forRoot({
       pinoHttp:
@@ -53,7 +56,6 @@ const moduleMetadata: ModuleMetadata = {
             },
     }),
   ],
-  // الضبط الناقص اللي كان موقف الدنيا:
   controllers: [AppController],
   providers: [AppService],
 };
