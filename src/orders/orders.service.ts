@@ -12,6 +12,7 @@ import {
 import { CarsService } from '../cars/cars.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { AuthUser } from '../auth/types/auth-user.type'; // 👈 Import the strict type
 
 @Injectable()
 export class OrdersService {
@@ -21,7 +22,7 @@ export class OrdersService {
     private readonly carsService: CarsService,
   ) {}
 
-  async create(userContext: { userId: string }, dto: CreateOrderDto) {
+  async create(userContext: AuthUser, dto: CreateOrderDto) {
     // Throws ForbiddenException / NotFoundException if caller doesn't own the car
     await this.carsService.findOne(dto.carId, userContext);
 
