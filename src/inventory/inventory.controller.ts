@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -34,19 +35,18 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER) // FIX: Allow Managers to add parts
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER)
   @ApiOperation({ summary: 'Add a new part to inventory' })
-  @ApiResponse({ status: 201, description: 'Part created successfully' })
-  async create(@Body() createPartDto: CreatePartDto) {
-    const part = await this.inventoryService.create(createPartDto);
+  @ApiResponse({ status: 201, description: 'Part created' })
+  async create(@Body() dto: CreatePartDto) {
+    const part = await this.inventoryService.create(dto);
     return new PartResponseDto(part);
   }
 
   @Get()
-  // FIX: Add ACCOUNT_MANAGER to the allowed list
-  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER) 
-  @ApiOperation({ summary: 'List all parts with pagination and search' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search by name or SKU' })
+  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER)
+  @ApiOperation({ summary: 'List parts with pagination and search' })
+  @ApiQuery({ name: 'search', required: false })
   async findAll(
     @Query() pagination: PaginationDto,
     @Query('search') search?: string,
@@ -56,28 +56,28 @@ export class InventoryController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER) // FIX
+  @Roles(UserRole.ADMIN, UserRole.USER, UserRole.ACCOUNT_MANAGER)
   @ApiOperation({ summary: 'Get part details' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const part = await this.inventoryService.findOne(id);
     return new PartResponseDto(part);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER) // FIX
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER)
   @ApiOperation({ summary: 'Update part details' })
   async update(
-    @Param('id') id: string,
-    @Body() updatePartDto: UpdatePartDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePartDto,
   ) {
-    const part = await this.inventoryService.update(id, updatePartDto);
+    const part = await this.inventoryService.update(id, dto);
     return new PartResponseDto(part);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Delete a part (Admin only)' })
-  async remove(@Param('id') id: string) {
+  @ApiOperation({ summary: 'Soft-delete a part (Admin only)' })
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.inventoryService.remove(id);
   }
 }

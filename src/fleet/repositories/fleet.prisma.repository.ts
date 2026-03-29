@@ -24,12 +24,11 @@ export class FleetPrismaRepository implements IFleetRepository {
         plateNumber: true,
         year: true,
         isFleetVehicle: true,
+        organizationId: true, // included for org-scope check in service
         model: {
           select: {
             name: true,
-            brand: {
-              select: { name: true },
-            },
+            brand: { select: { name: true } },
           },
         },
       },
@@ -43,6 +42,7 @@ export class FleetPrismaRepository implements IFleetRepository {
         id: true,
         isFleetVehicle: true,
         mileageKm: true,
+        organizationId: true, // included for org-scope check in service
       },
     });
   }
@@ -57,9 +57,7 @@ export class FleetPrismaRepository implements IFleetRepository {
         select: { mileageKm: true },
       });
 
-      if (!car) {
-        throw new BadRequestException('Car not found');
-      }
+      if (!car) throw new BadRequestException('Car not found');
 
       if (dto.odometerKms < car.mileageKm) {
         throw new BadRequestException(
@@ -89,10 +87,16 @@ export class FleetPrismaRepository implements IFleetRepository {
   }
 
   async getCostAnalyticsByVehicle(
+    organizationId: string,
     startDate?: Date,
     endDate?: Date,
   ): Promise<VehicleCostAnalyticsRaw[]> {
+    // Scope to org: only fuel logs for cars belonging to this organization
+    const orgCarIds = await this.getOrgCarIds(organizationId);
+    if (orgCarIds.length === 0) return [];
+
     const whereClause = this.buildDateFilter(startDate, endDate);
+    whereClause.carId = { in: orgCarIds };
 
     const analysis = await this.prisma.fuelLog.groupBy({
       by: ['carId'],
@@ -120,16 +124,22 @@ export class FleetPrismaRepository implements IFleetRepository {
   }
 
   async getCostAnalyticsByDriver(
+    organizationId: string,
     startDate?: Date,
     endDate?: Date,
   ): Promise<DriverCostAnalyticsRaw[]> {
+    // Scope to org: only fuel logs for cars belonging to this organization
+    const orgCarIds = await this.getOrgCarIds(organizationId);
+    if (orgCarIds.length === 0) return [];
+
     const whereClause = this.buildDateFilter(startDate, endDate);
+    whereClause.carId = { in: orgCarIds };
 
     const analysis = await this.prisma.fuelLog.groupBy({
       by: ['driverId'],
       _sum: { totalCost: true, liters: true },
       _count: { id: true },
-      where: whereClause, // 👈 Filter applied
+      where: whereClause,
     });
 
     if (analysis.length === 0) return [];
@@ -147,11 +157,6 @@ export class FleetPrismaRepository implements IFleetRepository {
     }));
   }
 
-  /**
-   * Paginated odometer / fuel history for a single vehicle, ordered oldest-first
-   * so the caller sees odometer readings progressing monotonically over time.
-   * Uses the composite index FuelLog(carId, createdAt).
-   */
   async getFuelLogHistory(
     carId: string,
     pagination: PaginationDto,
@@ -187,6 +192,16 @@ export class FleetPrismaRepository implements IFleetRepository {
     }));
   }
 
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  private async getOrgCarIds(organizationId: string): Promise<string[]> {
+    const cars = await this.prisma.car.findMany({
+      where: { organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    return cars.map((c) => c.id);
+  }
+
   private buildDateFilter(
     startDate?: Date,
     endDate?: Date,
@@ -194,21 +209,12 @@ export class FleetPrismaRepository implements IFleetRepository {
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('startDate cannot be greater than endDate');
     }
-
     const where: Prisma.FuelLogWhereInput = {};
-
     if (startDate || endDate) {
       where.createdAt = {};
-
-      if (startDate) {
-        where.createdAt.gte = startDate;
-      }
-
-      if (endDate) {
-        where.createdAt.lte = endDate;
-      }
+      if (startDate) where.createdAt.gte = startDate;
+      if (endDate) where.createdAt.lte = endDate;
     }
-
     return where;
   }
 }

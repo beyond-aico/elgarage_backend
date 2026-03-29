@@ -99,6 +99,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@index([deletedAt])
+  @@index([organizationId])
 }
 
 model RefreshToken {
@@ -304,6 +305,10 @@ model Order {
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([carId])
+  @@index([userId])
+  @@index([status])    
 }
 
 model OrderItem {
@@ -319,4 +324,6 @@ model OrderItem {
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   part      Part?    @relation(fields: [partId], references: [id])
   service   Service? @relation(fields: [serviceId], references: [id])
+
+  @@index([orderId])
 }

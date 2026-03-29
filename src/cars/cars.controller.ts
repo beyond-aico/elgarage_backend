@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Request as Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -15,9 +16,8 @@ import { CarsService } from './cars.service';
 import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AuthUser } from '../auth/types/auth-user.type'; // 👈 Import your AuthUser type
+import { AuthUser } from '../auth/types/auth-user.type';
 
-// Create a local type alias for a fully typed request
 type AuthRequest = Request & { user: AuthUser };
 
 @ApiTags('Cars')
@@ -29,22 +29,19 @@ export class CarsController {
 
   @Post()
   @ApiOperation({ summary: 'Register a new personal or fleet vehicle' })
-  create(@Req() req: AuthRequest, @Body() createCarDto: CreateCarDto) {
-    // req.user is now strictly typed as AuthUser!
-    return this.carsService.create(req.user, createCarDto);
+  create(@Req() req: AuthRequest, @Body() dto: CreateCarDto) {
+    return this.carsService.create(req.user, dto);
   }
 
   @Get()
-  @ApiOperation({
-    summary: 'List all vehicles owned by the user or their company',
-  })
+  @ApiOperation({ summary: 'List all vehicles owned by user or their company' })
   findAll(@Req() req: AuthRequest) {
     return this.carsService.findAll(req.user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of a specific vehicle' })
-  findOne(@Req() req: AuthRequest, @Param('id') id: string) {
+  findOne(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) {
     return this.carsService.findOne(id, req.user);
   }
 
@@ -52,15 +49,15 @@ export class CarsController {
   @ApiOperation({ summary: 'Update vehicle details' })
   update(
     @Req() req: AuthRequest,
-    @Param('id') id: string,
-    @Body() updateCarDto: UpdateCarDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCarDto,
   ) {
-    return this.carsService.update(id, updateCarDto, req.user);
+    return this.carsService.update(id, dto, req.user);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Remove a vehicle (Soft Delete)' })
-  remove(@Req() req: AuthRequest, @Param('id') id: string) {
+  @ApiOperation({ summary: 'Soft-delete a vehicle' })
+  remove(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) {
     return this.carsService.remove(id, req.user);
   }
 }

@@ -50,12 +50,8 @@ export class UsersPrismaRepository implements IUsersRepository {
   ): Promise<SafeUser> {
     return this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: {
-          name: dto.organizationName!,
-          taxId: dto.taxId ?? null,
-        },
+        data: { name: dto.organizationName!, taxId: dto.taxId ?? null },
       });
-
       return tx.user.create({
         data: {
           email: dto.email,
@@ -70,6 +66,22 @@ export class UsersPrismaRepository implements IUsersRepository {
     });
   }
 
+  async adminCreateUser(dto: CreateUserDto, hash: string): Promise<SafeUser> {
+    return this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hash,
+        name: dto.name,
+        phone: dto.phone ?? null,
+        address: dto.address ?? null,
+        city: dto.city ?? null,
+        country: dto.country ?? null,
+        role: dto.role ?? UserRole.USER,
+      },
+      select: SAFE_USER_SELECT,
+    });
+  }
+
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { email, deletedAt: null },
@@ -81,6 +93,12 @@ export class UsersPrismaRepository implements IUsersRepository {
     return this.prisma.user.findUnique({
       where: { id, deletedAt: null },
       select: SAFE_USER_SELECT,
+    });
+  }
+
+  async findByIdWithPassword(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { id, deletedAt: null },
     });
   }
 
@@ -108,26 +126,21 @@ export class UsersPrismaRepository implements IUsersRepository {
     });
   }
 
-  async softDelete(id: string): Promise<void> {
+  async updatePassword(id: string, hash: string): Promise<void> {
     await this.prisma.user.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: { password: hash },
     });
   }
 
-  async adminCreateUser(dto: CreateUserDto, hash: string): Promise<SafeUser> {
-    return this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hash,
-        name: dto.name,
-        phone: dto.phone ?? null,
-        address: dto.address ?? null,
-        city: dto.city ?? null,
-        country: dto.country ?? null,
-        role: dto.role ?? UserRole.USER,
-      },
-      select: SAFE_USER_SELECT,
-    });
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.$transaction([
+      // Revoke refresh token so the user cannot refresh after deletion
+      this.prisma.refreshToken.deleteMany({ where: { userId: id } }),
+      this.prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      }),
+    ]);
   }
 }
