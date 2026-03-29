@@ -7,35 +7,30 @@ import {
   IsInt,
   Min,
   ValidateIf,
+  ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class OrderItemDto {
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, description: 'UUID of the part to order' })
   @IsOptional()
   @IsUUID()
   partId?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, description: 'UUID of the service to order' })
   @IsOptional()
   @IsUUID()
   serviceId?: string;
 
-  /**
-   * XOR guard A — fires when NEITHER partId nor serviceId is provided.
-   * Result: "must have one" error.
-   */
+  /** Fires when NEITHER partId nor serviceId is provided */
   @ValidateIf((o: OrderItemDto) => !o.partId && !o.serviceId)
   @IsNotEmpty({
     message: 'Each order item must have either a partId or a serviceId.',
   })
   _xorGuardNeither?: never;
 
-  /**
-   * XOR guard B — fires when BOTH partId and serviceId are provided.
-   * Result: "must not have both" error.
-   */
+  /** Fires when BOTH partId and serviceId are provided */
   @ValidateIf((o: OrderItemDto) => !!(o.partId && o.serviceId))
   @IsNotEmpty({
     message:
@@ -50,13 +45,17 @@ export class OrderItemDto {
 }
 
 export class CreateOrderDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'UUID of the car this order is for' })
   @IsNotEmpty()
   @IsUUID()
   carId!: string;
 
-  @ApiProperty({ type: [OrderItemDto] })
+  @ApiProperty({
+    type: [OrderItemDto],
+    description: 'At least one item (part or service) is required',
+  })
   @IsArray()
+  @ArrayMinSize(1, { message: 'An order must contain at least one item' })
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items!: OrderItemDto[];

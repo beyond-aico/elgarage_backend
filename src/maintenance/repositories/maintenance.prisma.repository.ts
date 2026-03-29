@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MaintenanceRecord } from '@prisma/client';
 import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
+import { RecordMaintenanceDto } from '../dto/record-maintenance.dto';
 
 @Injectable()
 export class MaintenanceRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Rules ───────────────────────────────────────────────────────────────
 
   async createRule(data: CreateMaintenanceRuleDto) {
     return this.prisma.maintenanceRule.create({
@@ -17,7 +21,6 @@ export class MaintenanceRepository {
     });
   }
 
-  /** Find all rules for a specific car model (the "DNA" fetch). */
   async findRulesByModel(modelId: string) {
     return this.prisma.maintenanceRule.findMany({
       where: { modelId },
@@ -25,16 +28,56 @@ export class MaintenanceRepository {
     });
   }
 
-  /** Find a specific rule by composite key. */
   async findOneRule(serviceId: string, modelId: string) {
     return this.prisma.maintenanceRule.findUnique({
-      where: {
-        serviceId_modelId: { serviceId, modelId },
-      },
+      where: { serviceId_modelId: { serviceId, modelId } },
     });
   }
 
   async removeRule(id: string) {
     return this.prisma.maintenanceRule.delete({ where: { id } });
+  }
+
+  // ─── Records ─────────────────────────────────────────────────────────────
+
+  async createRecord(
+    carId: string,
+    dto: RecordMaintenanceDto,
+  ): Promise<MaintenanceRecord> {
+    return this.prisma.maintenanceRecord.create({
+      data: {
+        carId,
+        serviceId: dto.serviceId,
+        mileageKm: dto.mileageKm,
+        notes: dto.notes ?? null,
+        performedAt: dto.performedAt ? new Date(dto.performedAt) : new Date(),
+      },
+      include: { service: true },
+    });
+  }
+
+  async findRecordsByCarId(carId: string): Promise<MaintenanceRecord[]> {
+    return this.prisma.maintenanceRecord.findMany({
+      where: { carId },
+      include: { service: true },
+      orderBy: { performedAt: 'desc' },
+    });
+  }
+
+  async findLastRecord(
+    carId: string,
+    serviceId: string,
+  ): Promise<MaintenanceRecord | null> {
+    return this.prisma.maintenanceRecord.findFirst({
+      where: { carId, serviceId },
+      orderBy: { performedAt: 'desc' },
+    });
+  }
+
+  async updateCarMileage(carId: string, mileageKm: number): Promise<void> {
+    await this.prisma.car.update({
+      where: { id: carId },
+      data: { mileageKm },
+    });
   }
 }

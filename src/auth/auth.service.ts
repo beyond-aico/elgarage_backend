@@ -7,7 +7,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SignupDto, LoginDto } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
 
-/** Parse a simple duration string like "15m", "7d", "24h", "1w" into milliseconds. */
 function parseDurationMs(value: string): number {
   const unit = value.slice(-1);
   const amount = parseInt(value.slice(0, -1), 10);
@@ -39,7 +38,6 @@ export class AuthService {
 
   async signup(dto: SignupDto) {
     const created = await this.usersService.registerPublicUser(dto);
-
     return this.generateTokens({
       id: created.id,
       email: created.email,
@@ -75,6 +73,12 @@ export class AuthService {
     });
   }
 
+  async logout(userId: string): Promise<{ message: string }> {
+    // Delete the stored refresh token — subsequent refresh attempts will fail
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    return { message: 'Logged out successfully' };
+  }
+
   private async generateTokens(user: {
     id: string;
     email: string;
@@ -89,16 +93,10 @@ export class AuthService {
     };
 
     const atSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
-    if (!atSecret)
-      throw new Error(
-        'FATAL: JWT_ACCESS_SECRET is not defined in the environment.',
-      );
+    if (!atSecret) throw new Error('FATAL: JWT_ACCESS_SECRET is not defined.');
 
     const rtSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
-    if (!rtSecret)
-      throw new Error(
-        'FATAL: JWT_REFRESH_SECRET is not defined in the environment.',
-      );
+    if (!rtSecret) throw new Error('FATAL: JWT_REFRESH_SECRET is not defined.');
 
     const atExpiresIn = (this.configService.get<string>(
       'JWT_ACCESS_EXPIRES_IN',

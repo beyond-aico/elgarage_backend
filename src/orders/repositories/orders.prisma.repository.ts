@@ -3,11 +3,15 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { IOrdersRepository } from '../interfaces/orders.repository.interface';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Order, OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+
+import {
+  IOrdersRepository,
+  OrderWithItems,
+} from '../interfaces/orders.repository.interface';
 
 @Injectable()
 export class OrdersPrismaRepository implements IOrdersRepository {
@@ -16,27 +20,31 @@ export class OrdersPrismaRepository implements IOrdersRepository {
   async createTransactional(
     userId: string,
     data: CreateOrderDto,
-  ): Promise<Order> {
+  ): Promise<OrderWithItems> {
     return this.prisma.$transaction(async (tx) => {
       let totalPrice = 0;
-      const orderItemsData: any[] = [];
+      const orderItemsData: Prisma.OrderItemCreateManyOrderInput[] = [];
 
       for (const item of data.items) {
         let price = 0;
 
-        // 1. Handle Parts (Inventory)
         if (item.partId) {
-          const part = await tx.part.findUnique({ where: { id: item.partId } });
-          if (!part)
-            throw new NotFoundException(`Part ID ${item.partId} not found`);
+          // Exclude soft-deleted parts
+          const part = await tx.part.findFirst({
+            where: { id: item.partId, deletedAt: null },
+          });
+          if (!part) {
+            throw new NotFoundException(
+              `Part ID ${item.partId} not found or has been removed`,
+            );
+          }
           if (part.quantity < item.quantity) {
             throw new BadRequestException(
-              `Insufficient stock for part: ${part.name}`,
+              `Insufficient stock for part "${part.name}": ${part.quantity} available, ${item.quantity} requested`,
             );
           }
 
           price = Number(part.price);
-          // Decrement Stock
           await tx.part.update({
             where: { id: part.id },
             data: { quantity: { decrement: item.quantity } },
@@ -47,14 +55,16 @@ export class OrdersPrismaRepository implements IOrdersRepository {
             quantity: item.quantity,
             price: new Prisma.Decimal(price),
           });
-        }
-        // 2. Handle Services
-        else if (item.serviceId) {
-          const service = await tx.service.findUnique({ where: { id: item.serviceId } });
-          if (!service)
+        } else if (item.serviceId) {
+          // Exclude soft-deleted and inactive services
+          const service = await tx.service.findFirst({
+            where: { id: item.serviceId, deletedAt: null, isActive: true },
+          });
+          if (!service) {
             throw new NotFoundException(
-              `Service ID ${item.serviceId} not found`,
+              `Service ID ${item.serviceId} not found, inactive, or has been removed`,
             );
+          }
 
           price = Number(service.basePrice);
           orderItemsData.push({
@@ -64,27 +74,22 @@ export class OrdersPrismaRepository implements IOrdersRepository {
           });
         } else {
           throw new BadRequestException(
-            'Order item must have either partId or serviceId',
+            'Each order item must have either a partId or a serviceId',
           );
         }
 
         totalPrice += price * item.quantity;
       }
 
-      // 3. Create Order
       return tx.order.create({
         data: {
           userId,
           carId: data.carId,
           totalPrice: new Prisma.Decimal(totalPrice),
-          items: {
-            create: orderItemsData,
-          },
+          items: { create: orderItemsData },
         },
         include: {
-          items: {
-            include: { part: true, service: true },
-          },
+          items: { include: { part: true, service: true } },
         },
       });
     });
@@ -94,9 +99,9 @@ export class OrdersPrismaRepository implements IOrdersRepository {
     pagination: PaginationDto,
     userId?: string,
     status?: OrderStatus,
-  ): Promise<Order[]> {
+  ): Promise<OrderWithItems[]> {
     const { skip = 0, take = 20 } = pagination;
-    const where: any = {};
+    const where: Prisma.OrderWhereInput = {};
     if (userId) where.userId = userId;
     if (status) where.status = status;
 
@@ -106,37 +111,53 @@ export class OrdersPrismaRepository implements IOrdersRepository {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
-        items: {
-          include: { part: true, service: true },
-        },
+        items: { include: { part: true, service: true } },
       },
     });
   }
 
-  async findById(id: string): Promise<Order | null> {
+  async findById(id: string): Promise<OrderWithItems | null> {
     return this.prisma.order.findUnique({
       where: { id },
       include: {
-        items: {
-          include: { part: true, service: true },
-        },
-        car: {
-          include: { model: { include: { brand: true } } },
-        },
+        items: { include: { part: true, service: true } },
+        car: { include: { model: { include: { brand: true } } } },
         user: true,
       },
     });
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
+  async updateStatus(id: string, status: OrderStatus): Promise<OrderWithItems> {
     return this.prisma.order.update({
       where: { id },
       data: { status },
       include: {
-        items: {
-          include: { part: true, service: true },
-        },
+        items: { include: { part: true, service: true } },
       },
     });
+  }
+
+  /**
+   * Reverse stock decrements for all part items in an order.
+   * Called inside a transaction when an order is cancelled.
+   */
+  async reverseStockForOrder(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    if (!order) return;
+
+    await this.prisma.$transaction(
+      order.items
+        .filter((item) => item.partId !== null)
+        .map((item) =>
+          this.prisma.part.update({
+            where: { id: item.partId! },
+            data: { quantity: { increment: item.quantity } },
+          }),
+        ),
+    );
   }
 }

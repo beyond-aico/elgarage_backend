@@ -10,6 +10,9 @@ import {
   Query,
   Req,
   NotFoundException,
+  ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,6 +24,7 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateOwnProfileDto, AdminUpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -39,9 +43,9 @@ export class UsersController {
   @Post()
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new user (Admin only)' })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  async create(@Body() createUserDto: CreateUserDto) {
-    const user = await this.usersService.create(createUserDto);
+  @ApiResponse({ status: 201, description: 'User created' })
+  async create(@Body() dto: CreateUserDto) {
+    const user = await this.usersService.create(dto);
     return new UserResponseDto(user);
   }
 
@@ -65,16 +69,12 @@ export class UsersController {
   @Get(':id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get any user by ID (Admin only)' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const user = await this.usersService.findOne(id);
     if (!user) throw new NotFoundException('User not found');
     return new UserResponseDto(user);
   }
 
-  /**
-   * Self-service profile update — accepts only name, phone, address, city, country.
-   * Email and role changes are intentionally excluded.
-   */
   @Patch('profile')
   @ApiOperation({ summary: 'Update own profile (name, phone, address only)' })
   async updateProfile(
@@ -85,23 +85,33 @@ export class UsersController {
     return new UserResponseDto(user);
   }
 
-  /**
-   * Admin update — can modify email, role, and all profile fields.
-   */
+  @Patch('password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change own password' })
+  @ApiResponse({ status: 200, description: 'Password changed' })
+  @ApiResponse({ status: 401, description: 'Current password incorrect' })
+  changePassword(
+    @Req() req: Request & { user: AuthUser },
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.usersService.changePassword(req.user.userId, dto);
+  }
+
   @Patch(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({
-    summary: 'Update any user including email/role (Admin only)',
-  })
-  async update(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
+  @ApiOperation({ summary: 'Update any user (Admin only)' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminUpdateUserDto,
+  ) {
     const user = await this.usersService.adminUpdate(id, dto);
     return new UserResponseDto(user);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Delete a user (Admin only)' })
-  async remove(@Param('id') id: string) {
+  @ApiOperation({ summary: 'Soft-delete a user (Admin only)' })
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.usersService.remove(id);
     return { message: 'User deleted successfully' };
   }

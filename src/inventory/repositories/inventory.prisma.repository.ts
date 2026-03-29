@@ -11,13 +11,17 @@ export class InventoryPrismaRepository implements IInventoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: CreatePartDto): Promise<Part> {
-    // Extract model IDs to handle the relation separately
     const { compatibleModelIds, ...partData } = data;
 
     return this.prisma.part.create({
       data: {
-        ...partData,
-        // Explicitly connect relations on creation
+        name: partData.name,
+        sku: partData.sku,
+        description: partData.description ?? null,
+        price: partData.price,
+        quantity: partData.quantity, // explicit mapping — no spread ambiguity
+        lowStockThreshold: partData.lowStockThreshold ?? 5,
+        location: partData.location ?? null,
         compatibleModels: {
           connect: compatibleModelIds.map((id) => ({ id })),
         },
@@ -41,7 +45,7 @@ export class InventoryPrismaRepository implements IInventoryRepository {
       skip,
       take,
       where,
-      orderBy: { quantity: 'asc' }, // Low stock first
+      orderBy: { quantity: 'asc' },
     });
   }
 
@@ -54,27 +58,17 @@ export class InventoryPrismaRepository implements IInventoryRepository {
   }
 
   async update(id: string, data: UpdatePartDto): Promise<Part> {
-    // Destructure to separate the relational array from standard scalar fields
     const { compatibleModelIds, ...partData } = data;
 
-    // Type the update payload strictly
-    const updateData: Prisma.PartUpdateInput = {
-      ...partData,
-    };
+    const updateData: Prisma.PartUpdateInput = { ...partData };
 
-    // If the update payload includes a new array of compatible model IDs,
-    // use Prisma's 'set' to completely overwrite the existing relationships.
-    // (If compatibleModelIds is undefined, this block is skipped safely).
     if (compatibleModelIds !== undefined) {
       updateData.compatibleModels = {
         set: compatibleModelIds.map((modelId) => ({ id: modelId })),
       };
     }
 
-    return this.prisma.part.update({
-      where: { id },
-      data: updateData,
-    });
+    return this.prisma.part.update({ where: { id }, data: updateData });
   }
 
   async softDelete(id: string): Promise<void> {

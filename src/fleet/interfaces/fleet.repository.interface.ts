@@ -9,11 +9,10 @@ export interface CarWithModelDetails {
   plateNumber: string;
   year: number;
   isFleetVehicle: boolean;
+  organizationId: string | null; // needed for org-scope validation
   model: {
     name: string;
-    brand: {
-      name: string;
-    } | null;
+    brand: { name: string } | null;
   } | null;
 }
 
@@ -21,53 +20,31 @@ export interface BasicCarMileage {
   id: string;
   isFleetVehicle: boolean;
   mileageKm: number;
+  organizationId: string | null; // needed for org-scope validation
 }
 
 export interface VehicleCostAnalyticsRaw {
   item: {
     carId: string;
-    _sum: {
-      totalCost: number | null;
-      liters: number | null;
-    };
-    _max: {
-      odometerKms: number | null;
-    };
+    _sum: { totalCost: number | null; liters: number | null };
+    _max: { odometerKms: number | null };
   };
   car?: {
     id: string;
     plateNumber: string;
-    model: {
-      name: string;
-      brand: {
-        name: string;
-      } | null;
-    } | null;
+    model: { name: string; brand: { name: string } | null } | null;
   };
 }
 
 export interface DriverCostAnalyticsRaw {
   item: {
     driverId: string;
-    _sum: {
-      totalCost: number | null;
-      liters: number | null;
-    };
-    _count: {
-      id: number;
-    };
+    _sum: { totalCost: number | null; liters: number | null };
+    _count: { id: number };
   };
-  driver?: {
-    id: string;
-    name: string;
-  };
+  driver?: { id: string; name: string };
 }
 
-/**
- * A single entry in the odometer / fuel history for a vehicle.
- * Returned by getFuelLogHistory ordered by createdAt ASC so callers
- * see the odometer reading progressing monotonically over time.
- */
 export interface OdometerHistoryEntry {
   id: string;
   odometerKms: number;
@@ -81,28 +58,21 @@ export interface OdometerHistoryEntry {
 
 export interface IFleetRepository {
   findCarByBarcode(barcode: string): Promise<CarWithModelDetails | null>;
-
   findCarById(carId: string): Promise<BasicCarMileage | null>;
-
   createFuelLogAndUpdateMileage(
     driverId: string,
     dto: CreateFuelLogDto,
   ): Promise<FuelLog>;
-
   getCostAnalyticsByVehicle(
+    organizationId: string,
     startDate?: Date,
     endDate?: Date,
   ): Promise<VehicleCostAnalyticsRaw[]>;
-
   getCostAnalyticsByDriver(
+    organizationId: string,
     startDate?: Date,
     endDate?: Date,
   ): Promise<DriverCostAnalyticsRaw[]>;
-
-  /**
-   * Paginated, chronological fuel-log history for a single vehicle.
-   * Every row includes the odometer reading, fuel data, and the driver's name.
-   */
   getFuelLogHistory(
     carId: string,
     pagination: PaginationDto,
