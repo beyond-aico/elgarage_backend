@@ -83,6 +83,8 @@ model User {
   
   role     UserRole @default(USER)
 
+  deletedAt DateTime?
+
   // [NEW] Corporate Linking
   organizationId String?
   organization   Organization? @relation("OrgMembers", fields: [organizationId], references: [id])
@@ -95,6 +97,8 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([deletedAt])
 }
 
 model RefreshToken {
@@ -154,12 +158,16 @@ model Car {
   isFleetVehicle Boolean   @default(false)
   barcode        String?   @unique
 
+  deletedAt DateTime?
+
   maintenanceRecords MaintenanceRecord[]
   orders             Order[]
   fuelLogs           FuelLog[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([deletedAt])
 }
 
 model FuelLog {
@@ -180,6 +188,7 @@ model FuelLog {
   @@index([carId])
   @@index([driverId])
   @@index([createdAt])
+  @@index([carId, createdAt(sort: Asc)])
 }
 
 // =========================
@@ -241,7 +250,9 @@ model Part {
   quantity          Int      @default(0)
   lowStockThreshold Int      @default(5)
   price             Decimal  @db.Decimal(10, 2)
-  location          String?  
+  location          String? 
+  
+  deletedAt DateTime?
 
   // [NEW] Smart Inventory Link
   compatibleModels  CarModel[]
@@ -250,6 +261,8 @@ model Part {
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([deletedAt]) 
 }
 
 model Service {
@@ -261,6 +274,8 @@ model Service {
   durationMinutes Int      @default(60)
   isActive        Boolean  @default(true)
   
+  deletedAt DateTime?
+  
   orderItems      OrderItem[]
 
   maintenanceRules   MaintenanceRule[]
@@ -268,6 +283,8 @@ model Service {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([deletedAt])
 }
 
 // =========================

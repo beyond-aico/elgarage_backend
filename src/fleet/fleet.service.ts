@@ -14,6 +14,7 @@ import {
   FLEET_REPOSITORY,
 } from './interfaces/fleet.repository.interface';
 import { GetAnalyticsFilterDto } from './dto/get-analytics-filter.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class FleetService {
@@ -85,7 +86,19 @@ export class FleetService {
     }
   }
 
-  private parseDateRange(filter: GetAnalyticsFilterDto): { startDate?: Date; endDate?: Date } {
+  /**
+   * Paginated, chronological odometer history for a fleet vehicle.
+   * The current mileage on Car is the denormalized "latest" value;
+   * this endpoint exposes the underlying FuelLog event log ordered by time.
+   */
+  async getOdometerHistory(carId: string, pagination: PaginationDto) {
+    return this.fleetRepo.getFuelLogHistory(carId, pagination);
+  }
+
+  private parseDateRange(filter: GetAnalyticsFilterDto): {
+    startDate?: Date;
+    endDate?: Date;
+  } {
     const startDate = filter.startDate ? new Date(filter.startDate) : undefined;
 
     let endDate: Date | undefined;

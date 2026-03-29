@@ -20,7 +20,13 @@ export class ServicesPrismaRepository implements IServicesRepository {
     activeOnly: boolean = true,
   ): Promise<Service[]> {
     const { skip = 0, take = 20 } = pagination;
-    const where: { category?: ServiceCategory; isActive?: boolean } = {};
+    const where: {
+      category?: ServiceCategory;
+      isActive?: boolean;
+      deletedAt: null;
+    } = {
+      deletedAt: null,
+    };
     if (category) where.category = category;
     if (activeOnly) where.isActive = true;
 
@@ -33,11 +39,11 @@ export class ServicesPrismaRepository implements IServicesRepository {
   }
 
   async findById(id: string): Promise<Service | null> {
-    return this.prisma.service.findUnique({ where: { id } });
+    return this.prisma.service.findFirst({ where: { id, deletedAt: null } });
   }
 
   async findByName(name: string): Promise<Service | null> {
-    return this.prisma.service.findFirst({ where: { name } });
+    return this.prisma.service.findFirst({ where: { name, deletedAt: null } });
   }
 
   async update(id: string, data: UpdateServiceDto): Promise<Service> {
@@ -47,7 +53,10 @@ export class ServicesPrismaRepository implements IServicesRepository {
     });
   }
 
-  async delete(id: string): Promise<void> {
-    await this.prisma.service.delete({ where: { id } });
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.service.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }

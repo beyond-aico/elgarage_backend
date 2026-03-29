@@ -1,37 +1,60 @@
 // src/auth/dto/auth.dto.ts
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
-import { UserRole } from '@prisma/client';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+} from 'class-validator';
 
 export class SignupDto {
+  @ApiProperty({ example: 'john.doe@example.com' })
   @IsEmail()
   email!: string;
 
+  @ApiProperty({ example: 'SecureP@ss123', minLength: 8 })
   @IsNotEmpty()
-  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
   password!: string;
 
+  @ApiProperty({ example: 'John Doe', description: 'Full name of the user' })
   @IsNotEmpty()
+  @IsString()
   name!: string;
 
+  @ApiPropertyOptional({ example: '+201000000000' })
   @IsOptional()
   @IsString()
   phone?: string;
 
   // --- B2B / Corporate Onboarding Fields ---
-  
-  @IsOptional()
-  @IsString()
-  organizationName?: string; // If provided, we create a Company!
 
+  @ApiPropertyOptional({
+    example: 'Acme Corp',
+    description: 'If provided, creates a new Company alongside the user',
+  })
   @IsOptional()
   @IsString()
-  taxId?: string; // Optional tax ID for the company
+  organizationName?: string;
+
+  @ApiPropertyOptional({
+    example: '123-456-789',
+    description: 'Optional tax ID for the company',
+  })
+  @IsOptional()
+  @IsString()
+  taxId?: string;
 }
 
 export class LoginDto {
+  @ApiProperty({ example: 'john.doe@example.com' })
   @IsEmail()
   email!: string;
 
+  @ApiProperty({ example: 'SecureP@ss123' })
   @IsNotEmpty()
+  @IsString()
   password!: string;
 }

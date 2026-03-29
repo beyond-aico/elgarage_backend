@@ -7,6 +7,7 @@ import {
 import { Worker, Job } from 'bullmq';
 import { redisConnection } from '../common/queues/queue.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface StockJobData {
   itemId: string;
@@ -17,7 +18,10 @@ export class StockProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(StockProcessor.name);
   private worker: Worker<StockJobData>;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   onModuleInit() {
     this.worker = new Worker<StockJobData>(
@@ -55,10 +59,14 @@ export class StockProcessor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (item.quantity <= item.lowStockThreshold) {
-      this.logger.warn(
-        `LOW STOCK ALERT: "${item.name}" — ${item.quantity} remaining (threshold: ${item.lowStockThreshold})`,
+      // Fire the structured notification — currently logs to pino, ready for
+      // email/Slack/webhook by swapping the body of sendLowStockAlert().
+      this.notifications.sendLowStockAlert(
+        item.name,
+        item.sku,
+        item.quantity,
+        item.lowStockThreshold,
       );
-      // TODO: trigger email / Slack / webhook here
     }
   }
 }

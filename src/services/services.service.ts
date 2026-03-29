@@ -65,6 +65,6 @@ export class ServicesService {
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.servicesRepository.delete(id);
+    return this.servicesRepository.softDelete(id);
   }
 }

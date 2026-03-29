@@ -7,6 +7,7 @@ import {
 import { Worker, Job } from 'bullmq';
 import { redisConnection } from '../common/queues/queue.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface MaintenanceJobData {
   carId: string;
@@ -17,7 +18,10 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MaintenanceProcessor.name);
   private worker: Worker<MaintenanceJobData>;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   onModuleInit() {
     this.worker = new Worker<MaintenanceJobData>(
@@ -42,9 +46,15 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const { carId } = job.data;
 
+    // Include the car's owner so we have an email address for notifications.
+    // For fleet cars userId is null — in that case we fall back to a structured
+    // log only (no individual owner to email).
     const car = await this.prisma.car.findUnique({
       where: { id: carId },
-      include: { maintenanceRecords: true },
+      include: {
+        maintenanceRecords: true,
+        user: { select: { email: true } },
+      },
     });
 
     if (!car) {
@@ -57,6 +67,10 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
       include: { service: true },
     });
 
+    // The recipient email is the personal owner's address, or undefined for
+    // fleet-owned cars (organizationId set, userId null).
+    const recipientEmail = car.user?.email ?? null;
+
     for (const rule of rules) {
       const lastRecord = car.maintenanceRecords
         .filter((r) => r.serviceId === rule.serviceId)
@@ -66,6 +80,15 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
         this.logger.log(
           `[Alert] Service never performed: ${rule.service.name} — car ${car.plateNumber}`,
         );
+
+        if (recipientEmail) {
+          this.notifications.sendMaintenanceAlert(
+            recipientEmail,
+            car.plateNumber,
+            rule.service.name,
+            'NEVER_PERFORMED',
+          );
+        }
         continue;
       }
 
@@ -76,6 +99,15 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
         this.logger.log(
           `[Alert] Maintenance due: ${rule.service.name} — car ${car.plateNumber}`,
         );
+
+        if (recipientEmail) {
+          this.notifications.sendMaintenanceAlert(
+            recipientEmail,
+            car.plateNumber,
+            rule.service.name,
+            'INTERVAL_EXCEEDED',
+          );
+        }
       }
     }
   }

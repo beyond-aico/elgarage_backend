@@ -9,7 +9,7 @@ export interface ICarsRepository {
   findAllByUserId(userId: string): Promise<Car[]>;
   findById(id: string): Promise<Car | null>;
   update(id: string, data: UpdateCarDto): Promise<Car>;
-  delete(id: string): Promise<void>;
+  softDelete(id: string): Promise<void>;
   findByIdentifier(identifier: {
     plateNumber?: string;
     vin?: string;

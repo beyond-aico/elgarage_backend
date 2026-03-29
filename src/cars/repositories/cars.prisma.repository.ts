@@ -21,7 +21,7 @@ export class CarsPrismaRepository implements ICarsRepository {
 
   async findAllByUserId(userId: string): Promise<Car[]> {
     return this.prisma.car.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null },
       include: {
         model: {
           include: { brand: true },
@@ -32,8 +32,8 @@ export class CarsPrismaRepository implements ICarsRepository {
   }
 
   async findById(id: string): Promise<Car | null> {
-    return this.prisma.car.findUnique({
-      where: { id },
+    return this.prisma.car.findFirst({
+      where: { id, deletedAt: null },
       include: { model: { include: { brand: true } } },
     });
   }
@@ -54,6 +54,7 @@ export class CarsPrismaRepository implements ICarsRepository {
     return this.prisma.car.findFirst({
       where: {
         OR: orConditions,
+        deletedAt: null,
       },
     });
   }
@@ -66,7 +67,10 @@ export class CarsPrismaRepository implements ICarsRepository {
     });
   }
 
-  async delete(id: string): Promise<void> {
-    await this.prisma.car.delete({ where: { id } });
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.car.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }

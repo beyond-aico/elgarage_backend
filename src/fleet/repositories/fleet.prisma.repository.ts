@@ -6,9 +6,11 @@ import {
   BasicCarMileage,
   VehicleCostAnalyticsRaw,
   DriverCostAnalyticsRaw,
+  OdometerHistoryEntry,
 } from '../interfaces/fleet.repository.interface';
 import { CreateFuelLogDto } from '../dto/create-fuel-log.dto';
 import { Prisma, FuelLog } from '@prisma/client';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class FleetPrismaRepository implements IFleetRepository {
@@ -96,7 +98,7 @@ export class FleetPrismaRepository implements IFleetRepository {
       by: ['carId'],
       _sum: { totalCost: true, liters: true },
       _max: { odometerKms: true },
-      where: whereClause, 
+      where: whereClause,
     });
 
     if (analysis.length === 0) return [];
@@ -117,14 +119,17 @@ export class FleetPrismaRepository implements IFleetRepository {
     return analysis.map((item) => ({ item, car: carMap.get(item.carId) }));
   }
 
-  async getCostAnalyticsByDriver(startDate?: Date, endDate?: Date): Promise<DriverCostAnalyticsRaw[]> {
+  async getCostAnalyticsByDriver(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DriverCostAnalyticsRaw[]> {
     const whereClause = this.buildDateFilter(startDate, endDate);
 
     const analysis = await this.prisma.fuelLog.groupBy({
       by: ['driverId'],
       _sum: { totalCost: true, liters: true },
       _count: { id: true },
-      where: whereClause, // 👈 Apply the filter here
+      where: whereClause, // 👈 Filter applied
     });
 
     if (analysis.length === 0) return [];
@@ -136,7 +141,50 @@ export class FleetPrismaRepository implements IFleetRepository {
     });
 
     const driverMap = new Map(drivers.map((d) => [d.id, d]));
-    return analysis.map((item) => ({ item, driver: driverMap.get(item.driverId) }));
+    return analysis.map((item) => ({
+      item,
+      driver: driverMap.get(item.driverId),
+    }));
+  }
+
+  /**
+   * Paginated odometer / fuel history for a single vehicle, ordered oldest-first
+   * so the caller sees odometer readings progressing monotonically over time.
+   * Uses the composite index FuelLog(carId, createdAt).
+   */
+  async getFuelLogHistory(
+    carId: string,
+    pagination: PaginationDto,
+  ): Promise<OdometerHistoryEntry[]> {
+    const { skip = 0, take = 20 } = pagination;
+
+    const logs = await this.prisma.fuelLog.findMany({
+      where: { carId },
+      orderBy: { createdAt: 'asc' },
+      skip,
+      take,
+      select: {
+        id: true,
+        odometerKms: true,
+        fuelType: true,
+        liters: true,
+        totalCost: true,
+        notes: true,
+        createdAt: true,
+        driver: { select: { name: true } },
+      },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      odometerKms: log.odometerKms,
+      fuelType: log.fuelType,
+      liters: log.liters,
+      totalCost: log.totalCost,
+      notes: log.notes,
+      driverName: log.driver.name,
+      createdAt: log.createdAt,
+    }));
   }
 
   private buildDateFilter(

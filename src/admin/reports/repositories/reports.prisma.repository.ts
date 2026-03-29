@@ -51,8 +51,10 @@ export class ReportsPrismaRepository implements IReportsRepository {
 
     const [users, cars, orders, revenueAgg, lowStockResult] = await Promise.all(
       [
-        this.prisma.user.count(),
-        this.prisma.car.count(),
+        // Exclude soft-deleted users from the dashboard count
+        this.prisma.user.count({ where: { deletedAt: null } }),
+        // Exclude soft-deleted cars from the dashboard count
+        this.prisma.car.count({ where: { deletedAt: null } }),
         this.prisma.order.count({ where: dateFilter }),
         this.prisma.order.aggregate({
           _sum: { totalPrice: true },
@@ -61,11 +63,12 @@ export class ReportsPrismaRepository implements IReportsRepository {
             status: { not: OrderStatus.CANCELLED },
           },
         }),
-        // Use each part's own lowStockThreshold — same logic as getLowStockParts().
+        // Exclude soft-deleted parts from the low-stock count
         this.prisma.$queryRaw<[{ count: bigint }]>`
         SELECT COUNT(*)::int AS count FROM "Part"
         WHERE "lowStockThreshold" IS NOT NULL
           AND quantity <= "lowStockThreshold"
+          AND "deletedAt" IS NULL
       `,
       ],
     );
@@ -85,10 +88,12 @@ export class ReportsPrismaRepository implements IReportsRepository {
     // Compare each part's quantity against its own configured threshold.
     // The IS NOT NULL guard makes the null-exclusion behaviour explicit —
     // parts without a configured threshold are intentionally skipped.
+    // "deletedAt" IS NULL excludes soft-deleted parts.
     return this.prisma.$queryRaw<Part[]>`
       SELECT * FROM "Part"
       WHERE "lowStockThreshold" IS NOT NULL
         AND quantity <= "lowStockThreshold"
+        AND "deletedAt" IS NULL
       ORDER BY quantity ASC
     `;
   }
