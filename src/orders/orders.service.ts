@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { OrderStatus, UserRole } from '@prisma/client';
 import {
   IOrdersRepository,
   ORDERS_REPOSITORY,
@@ -15,7 +15,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { AuthUser } from '../auth/types/auth-user.type';
-import { assertValidTransition, isCancellation } from './order-state-machine';
+import { assertValidTransition } from './order-state-machine';
 
 @Injectable()
 export class OrdersService {
@@ -27,16 +27,13 @@ export class OrdersService {
   ) {}
 
   async create(userContext: AuthUser, dto: CreateOrderDto) {
-    // Ownership check — throws ForbiddenException / NotFoundException
     await this.carsService.findOne(dto.carId, userContext);
 
-    // 👈 Note: Make sure the repository interface returns the nested items!
     const order = await this.ordersRepository.createTransactional(
       userContext.userId,
       dto,
     );
 
-    // Trigger low-stock checks for every part in the order (fire-and-forget)
     if (order.items && order.items.length > 0) {
       for (const item of order.items) {
         if (item.partId) {
@@ -50,13 +47,29 @@ export class OrdersService {
     return order;
   }
 
-  async findAll(pagination: PaginationDto, userId: string, role: UserRole) {
-    const filterUserId =
-      role === UserRole.ADMIN || role === UserRole.ACCOUNT_MANAGER
-        ? undefined
-        : userId;
+  async findAll(
+    pagination: PaginationDto,
+    userId: string,
+    role: UserRole,
+    userContext: AuthUser,
+  ) {
+    if (role === UserRole.ADMIN) {
+      return this.ordersRepository.findAll(pagination, undefined);
+    }
 
-    return this.ordersRepository.findAll(pagination, filterUserId);
+    if (role === UserRole.ACCOUNT_MANAGER) {
+      if (!userContext.organizationId) {
+        // Manager without an org — safe fallback to own orders only
+        return this.ordersRepository.findAll(pagination, userId);
+      }
+      return this.ordersRepository.findAllByOrganization(
+        pagination,
+        userContext.organizationId,
+      );
+    }
+
+    // USER and DRIVER see only their own orders
+    return this.ordersRepository.findAll(pagination, userId);
   }
 
   async findOne(id: string, userId: string, role: UserRole) {
@@ -73,6 +86,38 @@ export class OrdersService {
     return order;
   }
 
+  async cancelOrder(id: string, userContext: AuthUser) {
+    const order = await this.ordersRepository.findById(id);
+    if (!order) throw new NotFoundException('Order not found');
+
+    const isAdmin = userContext.role === UserRole.ADMIN;
+    const isManager = userContext.role === UserRole.ACCOUNT_MANAGER;
+
+    if (isManager) {
+      // Account Manager can only cancel orders for cars in their org
+      if (
+        !order.car ||
+        order.car.organizationId !== userContext.organizationId
+      ) {
+        throw new ForbiddenException(
+          'You can only cancel orders for vehicles in your organization',
+        );
+      }
+    } else if (!isAdmin) {
+      // Regular user can only cancel their own orders
+      if (order.userId !== userContext.userId) {
+        throw new ForbiddenException('You cannot cancel this order');
+      }
+    }
+
+    assertValidTransition(order.status, OrderStatus.CANCELLED);
+
+    return this.ordersRepository.updateStatusAtomically(
+      id,
+      OrderStatus.CANCELLED,
+    );
+  }
+
   async updateStatus(
     id: string,
     dto: UpdateOrderStatusDto,
@@ -81,26 +126,20 @@ export class OrdersService {
     const order = await this.ordersRepository.findById(id);
     if (!order) throw new NotFoundException('Order not found');
 
-    // 👈 THE FIX: Enforce authorization for status updates
-    const isPrivileged =
-      userContext.role === UserRole.ADMIN ||
-      userContext.role === UserRole.ACCOUNT_MANAGER;
-
-    // A regular user can only update their own order (e.g., to cancel it)
-    if (!isPrivileged && order.userId !== userContext.userId) {
-      throw new ForbiddenException(
-        'You do not have permission to update this order',
-      );
+    // Account Manager can only update orders for cars in their org
+    if (userContext.role === UserRole.ACCOUNT_MANAGER) {
+      if (
+        !order.car ||
+        order.car.organizationId !== userContext.organizationId
+      ) {
+        throw new ForbiddenException(
+          'You can only update orders for vehicles in your organization',
+        );
+      }
     }
 
-    // Validate the state transition
     assertValidTransition(order.status, dto.status);
 
-    // Reverse stock on cancellation
-    if (isCancellation(dto.status)) {
-      await this.ordersRepository.reverseStockForOrder(id);
-    }
-
-    return this.ordersRepository.updateStatus(id, dto.status);
+    return this.ordersRepository.updateStatusAtomically(id, dto.status);
   }
 }

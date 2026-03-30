@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import {
   DashboardMetrics,
   FleetDashboardKpis,
@@ -13,33 +17,41 @@ import { Part, OrderStatus, Prisma } from '@prisma/client';
 export class ReportsPrismaRepository implements IReportsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private buildDateFilter(
+  // ─── Helpers ─────────────────────────────────────────────────────────
+
+  private buildFuelLogDateFilter(
     startDate?: Date,
     endDate?: Date,
   ): Prisma.FuelLogWhereInput {
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('startDate cannot be greater than endDate');
     }
-
     const where: Prisma.FuelLogWhereInput = {};
-
     if (startDate || endDate) {
-      const createdAt: Prisma.DateTimeFilter = {};
-
-      if (startDate) createdAt.gte = startDate;
-      if (endDate) createdAt.lte = endDate;
-
-      where.createdAt = createdAt;
+      where.createdAt = {};
+      if (startDate) (where.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate) (where.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
-
     return where;
   }
+
+  private async getOrgCarIds(organizationId: string): Promise<string[]> {
+    const cars = await this.prisma.car.findMany({
+      where: {
+        organizationId,
+        deletedAt: null, // explicit — never aggregate soft-deleted vehicles
+      },
+      select: { id: true },
+    });
+    return cars.map((c) => c.id);
+  }
+
+  // Dashboard
 
   async getDashboardMetrics(
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics> {
-    // Supports one-sided ranges: startDate-only and endDate-only both work.
     const dateFilter: Prisma.OrderWhereInput = {};
     if (startDate || endDate) {
       dateFilter.createdAt = {};
@@ -51,9 +63,7 @@ export class ReportsPrismaRepository implements IReportsRepository {
 
     const [users, cars, orders, revenueAgg, lowStockResult] = await Promise.all(
       [
-        // Exclude soft-deleted users from the dashboard count
         this.prisma.user.count({ where: { deletedAt: null } }),
-        // Exclude soft-deleted cars from the dashboard count
         this.prisma.car.count({ where: { deletedAt: null } }),
         this.prisma.order.count({ where: dateFilter }),
         this.prisma.order.aggregate({
@@ -63,13 +73,12 @@ export class ReportsPrismaRepository implements IReportsRepository {
             status: { not: OrderStatus.CANCELLED },
           },
         }),
-        // Exclude soft-deleted parts from the low-stock count
         this.prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*)::int AS count FROM "Part"
-        WHERE "lowStockThreshold" IS NOT NULL
-          AND quantity <= "lowStockThreshold"
-          AND "deletedAt" IS NULL
-      `,
+          SELECT COUNT(*)::int AS count FROM "Part"
+          WHERE "lowStockThreshold" IS NOT NULL
+            AND quantity <= "lowStockThreshold"
+            AND "deletedAt" IS NULL
+        `,
       ],
     );
 
@@ -85,10 +94,6 @@ export class ReportsPrismaRepository implements IReportsRepository {
   }
 
   async getLowStockParts(): Promise<Part[]> {
-    // Compare each part's quantity against its own configured threshold.
-    // The IS NOT NULL guard makes the null-exclusion behaviour explicit —
-    // parts without a configured threshold are intentionally skipped.
-    // "deletedAt" IS NULL excludes soft-deleted parts.
     return this.prisma.$queryRaw<Part[]>`
       SELECT * FROM "Part"
       WHERE "lowStockThreshold" IS NOT NULL
@@ -101,29 +106,22 @@ export class ReportsPrismaRepository implements IReportsRepository {
   async getTopSellingServices(limit: number = 5): Promise<any[]> {
     const result = await this.prisma.orderItem.groupBy({
       by: ['serviceId'],
-      _count: {
-        serviceId: true,
-      },
+      _count: { serviceId: true },
       where: {
         serviceId: { not: null },
+        order: { status: { not: OrderStatus.CANCELLED } },
       },
-      orderBy: {
-        _count: {
-          serviceId: 'desc',
-        },
-      },
+      orderBy: { _count: { serviceId: 'desc' } },
       take: limit,
     });
 
     const serviceIds = result.map((r) => r.serviceId as string);
-
     const services = await this.prisma.service.findMany({
       where: { id: { in: serviceIds } },
     });
 
     return result.map((r) => {
       const service = services.find((s) => s.id === r.serviceId);
-
       return {
         serviceName: service?.name ?? 'Unknown',
         count: r._count.serviceId,
@@ -131,11 +129,28 @@ export class ReportsPrismaRepository implements IReportsRepository {
     });
   }
 
+  // Fleet Dashboard
+
   async getFleetDashboardKpis(
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<FleetDashboardKpis> {
-    const where = this.buildDateFilter(startDate, endDate);
+    let where = this.buildFuelLogDateFilter(startDate, endDate);
+
+    if (organizationId) {
+      const orgCarIds = await this.getOrgCarIds(organizationId);
+      if (orgCarIds.length === 0) {
+        return {
+          totalFleetCost: 0,
+          totalFuelConsumedLiters: 0,
+          totalKmsDriven: 0,
+          costPerKm: 0,
+        };
+      }
+
+      where = { ...where, carId: { in: orgCarIds } };
+    }
 
     const [totals, vehicleStats] = await Promise.all([
       this.prisma.fuelLog.aggregate({
@@ -157,7 +172,6 @@ export class ReportsPrismaRepository implements IReportsRepository {
     }, 0);
 
     const totalFleetCost = totals._sum.totalCost ?? 0;
-
     const costPerKm = totalKmsDriven > 0 ? totalFleetCost / totalKmsDriven : 0;
 
     return {
@@ -169,19 +183,37 @@ export class ReportsPrismaRepository implements IReportsRepository {
   }
 
   // Vehicle Total Cost of Ownership
+
   async getVehicleTco(
     carId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<VehicleTcoAnalytics> {
-    const where = this.buildDateFilter(startDate, endDate);
+    if (organizationId) {
+      const car = await this.prisma.car.findFirst({
+        where: { id: carId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!car) {
+        throw new ForbiddenException(
+          'This vehicle does not belong to your organization',
+        );
+      }
+    }
 
-    const maintenanceWhere: Prisma.OrderWhereInput = { carId };
+    const where = this.buildFuelLogDateFilter(startDate, endDate);
 
+    const maintenanceWhere: Prisma.OrderWhereInput = {
+      carId,
+      status: { not: OrderStatus.CANCELLED },
+    };
     if (startDate || endDate) {
       maintenanceWhere.createdAt = {};
-      if (startDate) maintenanceWhere.createdAt.gte = startDate;
-      if (endDate) maintenanceWhere.createdAt.lte = endDate;
+      if (startDate)
+        (maintenanceWhere.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate)
+        (maintenanceWhere.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
 
     const [fuel, maintenance] = await Promise.all([
@@ -208,23 +240,56 @@ export class ReportsPrismaRepository implements IReportsRepository {
   }
 
   // Driver Efficiency Analytics
+
   async getDriverEfficiency(
     driverId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<DriverEfficiencyAnalytics> {
-    const where = this.buildDateFilter(startDate, endDate);
+    // Validate driver belongs to org (existing check)
+    if (organizationId) {
+      const driver = await this.prisma.user.findFirst({
+        where: { id: driverId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!driver) {
+        throw new ForbiddenException(
+          'This driver does not belong to your organization',
+        );
+      }
+    }
+
+    const dateFilter = this.buildFuelLogDateFilter(startDate, endDate);
+
+    let where: Prisma.FuelLogWhereInput = { driverId, ...dateFilter };
+
+    if (organizationId) {
+      const orgCarIds = await this.getOrgCarIds(organizationId);
+      if (orgCarIds.length === 0) {
+        return {
+          driverId,
+          totalFuelCost: 0,
+          totalLiters: 0,
+          totalKmsDriven: 0,
+          litersPer100Km: 0,
+          efficiencyStatus: 'UNKNOWN',
+        };
+      }
+      // Constrain to fuel logs where the car also belongs to this org
+      where = { ...where, carId: { in: orgCarIds } };
+    }
 
     const [fuel, carStats] = await Promise.all([
       this.prisma.fuelLog.aggregate({
         _sum: { totalCost: true, liters: true },
-        where: { driverId, ...where },
+        where,
       }),
       this.prisma.fuelLog.groupBy({
         by: ['carId'],
         _min: { odometerKms: true },
         _max: { odometerKms: true },
-        where: { driverId, ...where },
+        where,
       }),
     ]);
 
@@ -235,13 +300,11 @@ export class ReportsPrismaRepository implements IReportsRepository {
     }, 0);
 
     const totalLiters = fuel._sum.liters ?? 0;
-
     const litersPer100Km =
       totalKmsDriven > 0 ? (totalLiters / totalKmsDriven) * 100 : 0;
 
     let efficiencyStatus: DriverEfficiencyAnalytics['efficiencyStatus'] =
       'UNKNOWN';
-
     if (totalKmsDriven > 0) {
       if (litersPer100Km < 8) efficiencyStatus = 'EXCELLENT';
       else if (litersPer100Km <= 12) efficiencyStatus = 'NORMAL';
