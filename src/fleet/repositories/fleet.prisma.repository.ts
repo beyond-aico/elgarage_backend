@@ -24,7 +24,7 @@ export class FleetPrismaRepository implements IFleetRepository {
         plateNumber: true,
         year: true,
         isFleetVehicle: true,
-        organizationId: true, // included for org-scope check in service
+        organizationId: true,
         model: {
           select: {
             name: true,
@@ -42,7 +42,7 @@ export class FleetPrismaRepository implements IFleetRepository {
         id: true,
         isFleetVehicle: true,
         mileageKm: true,
-        organizationId: true, // included for org-scope check in service
+        organizationId: true,
       },
     });
   }
@@ -71,8 +71,8 @@ export class FleetPrismaRepository implements IFleetRepository {
           carId: dto.carId,
           odometerKms: dto.odometerKms,
           fuelType: dto.fuelType,
-          liters: dto.liters,
-          totalCost: dto.totalCost,
+          liters: new Prisma.Decimal(dto.liters),
+          totalCost: new Prisma.Decimal(dto.totalCost),
           notes: dto.notes,
         },
       });
@@ -91,7 +91,6 @@ export class FleetPrismaRepository implements IFleetRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<VehicleCostAnalyticsRaw[]> {
-    // Scope to org: only fuel logs for cars belonging to this organization
     const orgCarIds = await this.getOrgCarIds(organizationId);
     if (orgCarIds.length === 0) return [];
 
@@ -120,7 +119,17 @@ export class FleetPrismaRepository implements IFleetRepository {
     });
 
     const carMap = new Map(cars.map((c) => [c.id, c]));
-    return analysis.map((item) => ({ item, car: carMap.get(item.carId) }));
+    return analysis.map((item) => ({
+      // Convert Decimal aggregates to number for the raw interface
+      item: {
+        ...item,
+        _sum: {
+          totalCost: item._sum.totalCost ? Number(item._sum.totalCost) : null,
+          liters: item._sum.liters ? Number(item._sum.liters) : null,
+        },
+      },
+      car: carMap.get(item.carId),
+    }));
   }
 
   async getCostAnalyticsByDriver(
@@ -128,7 +137,6 @@ export class FleetPrismaRepository implements IFleetRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DriverCostAnalyticsRaw[]> {
-    // Scope to org: only fuel logs for cars belonging to this organization
     const orgCarIds = await this.getOrgCarIds(organizationId);
     if (orgCarIds.length === 0) return [];
 
@@ -152,7 +160,13 @@ export class FleetPrismaRepository implements IFleetRepository {
 
     const driverMap = new Map(drivers.map((d) => [d.id, d]));
     return analysis.map((item) => ({
-      item,
+      item: {
+        ...item,
+        _sum: {
+          totalCost: item._sum.totalCost ? Number(item._sum.totalCost) : null,
+          liters: item._sum.liters ? Number(item._sum.liters) : null,
+        },
+      },
       driver: driverMap.get(item.driverId),
     }));
   }
@@ -184,15 +198,14 @@ export class FleetPrismaRepository implements IFleetRepository {
       id: log.id,
       odometerKms: log.odometerKms,
       fuelType: log.fuelType,
-      liters: log.liters,
-      totalCost: log.totalCost,
+      // Convert Decimal to number for the response
+      liters: Number(log.liters),
+      totalCost: Number(log.totalCost),
       notes: log.notes,
       driverName: log.driver.name,
       createdAt: log.createdAt,
     }));
   }
-
-  // ─── Helpers ─────────────────────────────────────────────────────────────
 
   private async getOrgCarIds(organizationId: string): Promise<string[]> {
     const cars = await this.prisma.car.findMany({
@@ -212,8 +225,8 @@ export class FleetPrismaRepository implements IFleetRepository {
     const where: Prisma.FuelLogWhereInput = {};
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) where.createdAt.gte = startDate;
-      if (endDate) where.createdAt.lte = endDate;
+      if (startDate) (where.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate) (where.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
     return where;
   }

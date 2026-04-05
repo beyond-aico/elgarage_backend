@@ -4,6 +4,8 @@ import type { IReportsRepository } from './interfaces/reports.repository.interfa
 import { GetReportDto } from './dto/get-report.dto';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 import { GetAnalyticsFilterDto } from '../../fleet/dto/get-analytics-filter.dto';
+import { AuthUser } from '../../auth/types/auth-user.type';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class AdminReportsService {
@@ -12,7 +14,6 @@ export class AdminReportsService {
     private readonly reportsRepository: IReportsRepository,
   ) {}
 
-  // 👇 Unified helper that accepts any object with startDate/endDate strings
   private parseDateFilter(filter: { startDate?: string; endDate?: string }) {
     const startDate = filter.startDate ? new Date(filter.startDate) : undefined;
     const endDate = filter.endDate ? new Date(filter.endDate) : undefined;
@@ -20,15 +21,12 @@ export class AdminReportsService {
     if (startDate && isNaN(startDate.getTime())) {
       throw new BadRequestException('Invalid startDate format');
     }
-
     if (endDate && isNaN(endDate.getTime())) {
       throw new BadRequestException('Invalid endDate format');
     }
-
     if (endDate) {
       endDate.setUTCHours(23, 59, 59, 999);
     }
-
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('startDate cannot be greater than endDate');
     }
@@ -38,12 +36,10 @@ export class AdminReportsService {
 
   async getDashboardStats(dto: GetReportDto) {
     const { startDate, endDate } = this.parseDateFilter(dto);
-
     const metrics = await this.reportsRepository.getDashboardMetrics(
       startDate,
       endDate,
     );
-
     return new DashboardStatsDto({
       totalUsers: metrics.users,
       totalCars: metrics.cars,
@@ -61,22 +57,65 @@ export class AdminReportsService {
     return this.reportsRepository.getTopSellingServices();
   }
 
-  async getFleetDashboard(filter: GetAnalyticsFilterDto) {
+  /**
+   * pass organizationId for Account Manager callers.
+   * ADMIN receives undefined → sees all orgs.
+   */
+  async getFleetDashboard(
+    filter: GetAnalyticsFilterDto,
+    userContext: AuthUser,
+  ) {
     const { startDate, endDate } = this.parseDateFilter(filter);
-    return this.reportsRepository.getFleetDashboardKpis(startDate, endDate);
+    const organizationId =
+      userContext.role === UserRole.ACCOUNT_MANAGER
+        ? (userContext.organizationId ?? undefined)
+        : undefined;
+
+    return this.reportsRepository.getFleetDashboardKpis(
+      startDate,
+      endDate,
+      organizationId,
+    );
   }
 
-  async getVehicleAnalysis(carId: string, filter: GetAnalyticsFilterDto) {
+  /**
+   * pass organizationId so the repository can validate ownership.
+   */
+  async getVehicleAnalysis(
+    carId: string,
+    filter: GetAnalyticsFilterDto,
+    userContext: AuthUser,
+  ) {
     const { startDate, endDate } = this.parseDateFilter(filter);
-    return this.reportsRepository.getVehicleTco(carId, startDate, endDate);
+    const organizationId =
+      userContext.role === UserRole.ACCOUNT_MANAGER
+        ? (userContext.organizationId ?? undefined)
+        : undefined;
+
+    return this.reportsRepository.getVehicleTco(
+      carId,
+      startDate,
+      endDate,
+      organizationId,
+    );
   }
 
-  async getDriverAnalysis(driverId: string, filter: GetAnalyticsFilterDto) {
+  async getDriverAnalysis(
+    driverId: string,
+    filter: GetAnalyticsFilterDto,
+    userContext: AuthUser,
+  ) {
     const { startDate, endDate } = this.parseDateFilter(filter);
+    const organizationId =
+      userContext.role === UserRole.ACCOUNT_MANAGER
+        ? (userContext.organizationId ?? undefined)
+        : undefined;
+
     return this.reportsRepository.getDriverEfficiency(
       driverId,
       startDate,
       endDate,
+      organizationId,
     );
   }
 }

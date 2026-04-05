@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS "RefreshToken_token_key";

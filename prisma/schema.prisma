@@ -98,13 +98,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([deletedAt])
   @@index([organizationId])
 }
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  token     String   @unique
+  token     String   
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
@@ -167,8 +166,6 @@ model Car {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@index([deletedAt])
 }
 
 model FuelLog {
@@ -177,8 +174,8 @@ model FuelLog {
   driverId    String
   odometerKms Int      // Mileage recorded by the driver
   fuelType    FuelType
-  liters      Float
-  totalCost   Float
+  liters      Decimal  @db.Decimal(10, 3)
+  totalCost   Decimal  @db.Decimal(10, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -236,6 +233,7 @@ model MaintenanceRecord {
 
   @@index([carId])
   @@index([serviceId])
+  @@index([carId, serviceId, performedAt(sort: Desc)])
 }
 
 // =========================
@@ -262,8 +260,6 @@ model Part {
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  @@index([deletedAt]) 
 }
 
 model Service {
@@ -284,8 +280,6 @@ model Service {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
-  @@index([deletedAt])
 }
 
 // =========================
@@ -308,7 +302,8 @@ model Order {
 
   @@index([carId])
   @@index([userId])
-  @@index([status])    
+  @@index([status])  
+  @@index([createdAt])  
 }
 
 model OrderItem {

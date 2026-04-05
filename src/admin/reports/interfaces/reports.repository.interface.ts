@@ -39,20 +39,36 @@ export interface IReportsRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics>;
+
   getLowStockParts(): Promise<Part[]>;
+
   getTopSellingServices(limit?: number): Promise<any[]>;
+
+  /**
+   * organizationId is now required for Account Manager callers.
+   * Pass undefined only for ADMIN-level queries (all orgs).
+   */
   getFleetDashboardKpis(
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<FleetDashboardKpis>;
+
+  /**
+   * caller must supply their organizationId so we can
+   * validate the carId belongs to their org before returning data.
+   */
   getVehicleTco(
     carId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<VehicleTcoAnalytics>;
+
   getDriverEfficiency(
     driverId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<DriverEfficiencyAnalytics>;
 }

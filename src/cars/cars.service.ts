@@ -2,16 +2,26 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  Inject,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { UserRole } from '@prisma/client';
 import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
-import { UserRole } from '@prisma/client';
 import { AuthUser } from '../auth/types/auth-user.type';
+import {
+  ICarsRepository,
+  CARS_REPOSITORY,
+} from './interfaces/cars.repository.interface';
+
+const PERSONAL_CAR_LIMIT = 2;
+const FLEET_CAR_LIMIT = 50;
 
 @Injectable()
 export class CarsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @Inject(CARS_REPOSITORY)
+    private readonly carsRepository: ICarsRepository,
+  ) {}
 
   async create(userContext: AuthUser, dto: CreateCarDto) {
     if (userContext.organizationId) {
@@ -21,83 +31,42 @@ export class CarsService {
   }
 
   private async createFleetCar(orgId: string, dto: CreateCarDto) {
-    const currentCount = await this.prisma.car.count({
-      where: { organizationId: orgId, deletedAt: null },
-    });
-
-    if (currentCount >= 50) {
+    const currentCount = await this.carsRepository.countByOrganizationId(orgId);
+    if (currentCount >= FLEET_CAR_LIMIT) {
       throw new ForbiddenException(
-        'Fleet limit reached (50). Contact sales to upgrade.',
+        `Fleet limit reached (${FLEET_CAR_LIMIT}). Contact sales to upgrade.`,
       );
     }
-
-    return this.prisma.car.create({
-      data: {
-        modelId: dto.modelId,
-        year: dto.year,
-        mileageKm: dto.mileageKm,
-        color: dto.color,
-        plateNumber: dto.plateNumber,
-        organizationId: orgId,
-        userId: null,
-        isFleetVehicle: true, // set programmatically — not from DTO
-        barcode: null, // barcode generated separately when needed
-      },
-    });
+    return this.carsRepository.createFleet(orgId, dto);
   }
 
   private async createPersonalCar(userId: string, dto: CreateCarDto) {
-    const currentCount = await this.prisma.car.count({
-      where: { userId, deletedAt: null },
-    });
-
-    if (currentCount >= 2) {
+    const currentCount = await this.carsRepository.countByUserId(userId);
+    if (currentCount >= PERSONAL_CAR_LIMIT) {
       throw new ForbiddenException(
-        'Free accounts are limited to 2 vehicles. Please upgrade.',
+        `Free accounts are limited to ${PERSONAL_CAR_LIMIT} vehicles. Please upgrade.`,
       );
     }
-
-    return this.prisma.car.create({
-      data: {
-        modelId: dto.modelId,
-        year: dto.year,
-        mileageKm: dto.mileageKm,
-        color: dto.color,
-        plateNumber: dto.plateNumber,
-        userId: userId,
-        organizationId: null,
-        isFleetVehicle: false, // personal cars are never fleet vehicles
-        barcode: null,
-      },
-    });
+    return this.carsRepository.createPersonal(userId, dto);
   }
 
   async findAll(userContext: AuthUser) {
     if (userContext.organizationId) {
-      return this.prisma.car.findMany({
-        where: { organizationId: userContext.organizationId, deletedAt: null },
-        include: { model: { include: { brand: true } } },
-      });
+      return this.carsRepository.findAllByOrganizationId(
+        userContext.organizationId,
+      );
     }
-
-    return this.prisma.car.findMany({
-      where: { userId: userContext.userId, deletedAt: null },
-      include: { model: { include: { brand: true } } },
-    });
+    return this.carsRepository.findAllByUserId(userContext.userId);
   }
 
   async findOne(id: string, userContext: AuthUser) {
-    const car = await this.prisma.car.findUnique({
-      where: { id },
-      include: { model: true },
-    });
+    const car = await this.carsRepository.findById(id);
 
-    if (!car || car.deletedAt !== null) {
+    if (!car) {
       throw new NotFoundException('Car not found');
     }
 
     const isMyPersonal = car.userId === userContext.userId;
-    // Guard: organizationId must be non-null on BOTH sides to match
     const isMyFleet =
       userContext.organizationId != null &&
       car.organizationId === userContext.organizationId;
@@ -111,14 +80,11 @@ export class CarsService {
 
   async update(id: string, dto: UpdateCarDto, userContext: AuthUser) {
     await this.findOne(id, userContext);
-    return this.prisma.car.update({ where: { id }, data: dto });
+    return this.carsRepository.update(id, dto);
   }
 
   async remove(id: string, userContext: AuthUser) {
     await this.findOne(id, userContext);
-    return this.prisma.car.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    return this.carsRepository.softDelete(id);
   }
 }
