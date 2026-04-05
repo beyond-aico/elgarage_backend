@@ -171,12 +171,13 @@ export class ReportsPrismaRepository implements IReportsRepository {
       return acc + (max - min);
     }, 0);
 
-    const totalFleetCost = totals._sum.totalCost ?? 0;
+    const totalFleetCost = Number(totals._sum.totalCost ?? 0);
+    const totalFuelConsumedLiters = Number(totals._sum.liters ?? 0);
     const costPerKm = totalKmsDriven > 0 ? totalFleetCost / totalKmsDriven : 0;
 
     return {
       totalFleetCost,
-      totalFuelConsumedLiters: totals._sum.liters ?? 0,
+      totalFuelConsumedLiters,
       totalKmsDriven,
       costPerKm: Number(costPerKm.toFixed(2)),
     };
@@ -227,7 +228,8 @@ export class ReportsPrismaRepository implements IReportsRepository {
       }),
     ]);
 
-    const fuelCost = fuel._sum.totalCost ?? 0;
+    const fuelCost = Number(fuel._sum.totalCost ?? 0);
+    const totalLiters = Number(fuel._sum.liters ?? 0);
     const maintenanceCost = Number(maintenance._sum.totalPrice ?? 0);
 
     return {
@@ -235,7 +237,7 @@ export class ReportsPrismaRepository implements IReportsRepository {
       fuelCost,
       maintenanceCost,
       totalCostOfOwnership: fuelCost + maintenanceCost,
-      totalLiters: fuel._sum.liters ?? 0,
+      totalLiters,
     };
   }
 
@@ -299,7 +301,9 @@ export class ReportsPrismaRepository implements IReportsRepository {
       return acc + (max - min);
     }, 0);
 
-    const totalLiters = fuel._sum.liters ?? 0;
+    const totalLiters = Number(fuel._sum.liters ?? 0);
+    const totalFuelCost = Number(fuel._sum.totalCost ?? 0);
+
     const litersPer100Km =
       totalKmsDriven > 0 ? (totalLiters / totalKmsDriven) * 100 : 0;
 
@@ -313,7 +317,7 @@ export class ReportsPrismaRepository implements IReportsRepository {
 
     return {
       driverId,
-      totalFuelCost: fuel._sum.totalCost ?? 0,
+      totalFuelCost,
       totalLiters,
       totalKmsDriven,
       litersPer100Km: Number(litersPer100Km.toFixed(2)),
