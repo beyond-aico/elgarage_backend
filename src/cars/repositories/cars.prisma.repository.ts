@@ -102,6 +102,14 @@ export class CarsPrismaRepository implements ICarsRepository {
     });
   }
 
+  async assignBarcode(carId: string, barcode: string): Promise<Car> {
+    return this.prisma.car.update({
+      where: { id: carId },
+      data: { barcode },
+      include: CAR_INCLUDE,
+    });
+  }
+
   async softDelete(id: string): Promise<void> {
     await this.prisma.car.update({
       where: { id },

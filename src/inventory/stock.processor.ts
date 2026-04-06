@@ -16,14 +16,14 @@ interface StockJobData {
 @Injectable()
 export class StockProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(StockProcessor.name);
-  private worker: Worker<StockJobData>;
+  private worker?: Worker<StockJobData>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
 
-  onModuleInit() {
+  onModuleInit(): void {
     this.worker = new Worker<StockJobData>(
       'stock',
       (job: Job<StockJobData>) => this.handleCheckStock(job),
@@ -32,12 +32,17 @@ export class StockProcessor implements OnModuleInit, OnModuleDestroy {
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(
-        `Stock job failed for part ${job?.data.itemId}: ${err.message}`,
+        `Stock job failed for part ${job?.data.itemId ?? 'unknown'}: ${err.message}`,
+        err.stack,
       );
+    });
+
+    this.worker.on('error', (err) => {
+      this.logger.error(`Stock worker error: ${err.message}`, err.stack);
     });
   }
 
-  async onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
   }
 
@@ -53,14 +58,11 @@ export class StockProcessor implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // Guard: skip if threshold is not configured for this part
     if (item.lowStockThreshold == null) {
       return;
     }
 
     if (item.quantity <= item.lowStockThreshold) {
-      // Fire the structured notification — currently logs to pino, ready for
-      // email/Slack/webhook by swapping the body of sendLowStockAlert().
       this.notifications.sendLowStockAlert(
         item.name,
         item.sku,

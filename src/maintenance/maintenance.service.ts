@@ -4,6 +4,7 @@ import { CreateMaintenanceRuleDto } from './dto/create-maintenance-rule.dto';
 import { RecordMaintenanceDto } from './dto/record-maintenance.dto';
 import { CarsService } from '../cars/cars.service';
 import { AuthUser } from '../auth/types/auth-user.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class MaintenanceService {
@@ -55,10 +56,14 @@ export class MaintenanceService {
     return record;
   }
 
-  async getMaintenanceHistory(carId: string, userContext: AuthUser) {
+  async getMaintenanceHistory(
+    carId: string,
+    userContext: AuthUser,
+    pagination?: PaginationDto,
+  ) {
     // Ownership check
     await this.carsService.findOne(carId, userContext);
-    return this.repository.findRecordsByCarId(carId);
+    return this.repository.findRecordsByCarId(carId, pagination);
   }
 
   // ─── Health Status ───────────────────────────────────────────────────────

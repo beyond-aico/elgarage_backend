@@ -53,6 +53,7 @@ export interface OdometerHistoryEntry {
   totalCost: number;
   notes: string | null;
   driverName: string | null;
+  plateNumber?: string;
   createdAt: Date;
 }
 
@@ -75,6 +76,10 @@ export interface IFleetRepository {
   ): Promise<DriverCostAnalyticsRaw[]>;
   getFuelLogHistory(
     carId: string,
+    pagination: PaginationDto,
+  ): Promise<OdometerHistoryEntry[]>;
+  getDriverFuelLogs(
+    driverId: string,
     pagination: PaginationDto,
   ): Promise<OdometerHistoryEntry[]>;
 }

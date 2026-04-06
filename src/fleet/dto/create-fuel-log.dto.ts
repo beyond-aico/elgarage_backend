@@ -14,29 +14,29 @@ export class CreateFuelLogDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  carId: string;
+  carId!: string;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  odometerKms: number;
+  odometerKms!: number;
 
   @ApiProperty({ enum: FuelType })
   @IsEnum(FuelType)
-  fuelType: FuelType;
+  fuelType!: FuelType;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0.1)
-  liters: number;
+  liters!: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  totalCost: number;
+  totalCost!: number;
 
   @ApiProperty({ required: false })
   @IsString()

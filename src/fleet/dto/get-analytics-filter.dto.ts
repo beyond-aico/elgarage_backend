@@ -1,6 +1,5 @@
 import { IsOptional, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 
 export class GetAnalyticsFilterDto {
   @ApiPropertyOptional({
@@ -10,7 +9,6 @@ export class GetAnalyticsFilterDto {
   })
   @IsOptional()
   @IsDateString()
-  @Type(() => Date)
   startDate?: string;
 
   @ApiPropertyOptional({
@@ -20,6 +18,5 @@ export class GetAnalyticsFilterDto {
   })
   @IsOptional()
   @IsDateString()
-  @Type(() => Date)
   endDate?: string;
 }

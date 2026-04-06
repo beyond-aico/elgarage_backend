@@ -100,6 +100,10 @@ export class FleetService {
     return this.fleetRepo.getFuelLogHistory(carId, pagination);
   }
 
+  async getDriverFuelLogs(driverId: string, pagination: PaginationDto) {
+    return this.fleetRepo.getDriverFuelLogs(driverId, pagination);
+  }
+
   async getCostByVehicle(userContext: AuthUser, filter: GetAnalyticsFilterDto) {
     const orgId = this.requireOrgId(userContext);
     const { startDate, endDate } = this.parseDateRange(filter);
