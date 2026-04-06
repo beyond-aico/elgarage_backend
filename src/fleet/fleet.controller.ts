@@ -56,6 +56,21 @@ export class FleetController {
     return this.fleetService.addFuelLog(req.user, dto);
   }
 
+  @Get('logs/my-history')
+  @Roles(UserRole.DRIVER)
+  @ApiOperation({
+    summary: 'Get own fuel log history (Driver only)',
+    description:
+      'Returns a paginated list of all fuel logs submitted by the authenticated driver, ' +
+      'most recent first. Each entry includes the plate number of the vehicle fuelled.',
+  })
+  async getMyFuelLogs(
+    @Req() req: AuthRequest,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.fleetService.getDriverFuelLogs(req.user.userId, pagination);
+  }
+
   @Get('logs/:carId/history')
   @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
   @ApiParam({ name: 'carId', description: 'UUID of the fleet vehicle' })

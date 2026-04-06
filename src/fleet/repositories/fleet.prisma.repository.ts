@@ -207,6 +207,43 @@ export class FleetPrismaRepository implements IFleetRepository {
     }));
   }
 
+  async getDriverFuelLogs(
+    driverId: string,
+    pagination: PaginationDto,
+  ): Promise<OdometerHistoryEntry[]> {
+    const { skip = 0, take = 20 } = pagination;
+
+    const logs = await this.prisma.fuelLog.findMany({
+      where: { driverId },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+      select: {
+        id: true,
+        odometerKms: true,
+        fuelType: true,
+        liters: true,
+        totalCost: true,
+        notes: true,
+        createdAt: true,
+        car: { select: { plateNumber: true } },
+        driver: { select: { name: true } },
+      },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      odometerKms: log.odometerKms,
+      fuelType: log.fuelType,
+      liters: Number(log.liters),
+      totalCost: Number(log.totalCost),
+      notes: log.notes,
+      driverName: log.driver.name,
+      plateNumber: log.car.plateNumber,
+      createdAt: log.createdAt,
+    }));
+  }
+
   private async getOrgCarIds(organizationId: string): Promise<string[]> {
     const cars = await this.prisma.car.findMany({
       where: { organizationId, deletedAt: null },

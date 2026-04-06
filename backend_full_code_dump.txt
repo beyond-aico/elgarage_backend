@@ -2449,13 +2449,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([deletedAt])
   @@index([organizationId])
 }
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  token     String   @unique
+  token     String   
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
@@ -2518,8 +2517,6 @@ model Car {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@index([deletedAt])
 }
 
 model FuelLog {
@@ -2528,8 +2525,8 @@ model FuelLog {
   driverId    String
   odometerKms Int      // Mileage recorded by the driver
   fuelType    FuelType
-  liters      Float
-  totalCost   Float
+  liters      Decimal  @db.Decimal(10, 3)
+  totalCost   Decimal  @db.Decimal(10, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2587,6 +2584,7 @@ model MaintenanceRecord {
 
   @@index([carId])
   @@index([serviceId])
+  @@index([carId, serviceId, performedAt(sort: Desc)])
 }
 
 // =========================
@@ -2613,8 +2611,6 @@ model Part {
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  @@index([deletedAt]) 
 }
 
 model Service {
@@ -2635,8 +2631,6 @@ model Service {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
-  @@index([deletedAt])
 }
 
 // =========================
@@ -2659,7 +2653,8 @@ model Order {
 
   @@index([carId])
   @@index([userId])
-  @@index([status])    
+  @@index([status])  
+  @@index([createdAt])  
 }
 
 model OrderItem {
@@ -8675,8 +8670,9 @@ export class CreateModelDto {
 PATH: .\src\admin\reports\admin-reports.controller.ts
 ############################################################
 
-import { Controller, Get, Query, UseGuards, Param } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Param, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AdminReportsService } from './admin-reports.service';
 import { GetReportDto } from './dto/get-report.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -8684,61 +8680,77 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { GetAnalyticsFilterDto } from '../../fleet/dto/get-analytics-filter.dto';
+import { AuthUser } from '../../auth/types/auth-user.type';
+import { ParseUUIDPipe } from '@nestjs/common';
+
+type AuthRequest = Request & { user: AuthUser };
 
 @ApiTags('Admin Reports')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN) // Strict Admin Access
 @Controller('admin/reports')
 export class AdminReportsController {
   constructor(private readonly reportsService: AdminReportsService) {}
 
   @Get('dashboard')
-  @ApiOperation({ summary: 'Get high-level dashboard statistics' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get high-level dashboard statistics (Admin only)' })
   async getDashboard(@Query() dto: GetReportDto) {
     return this.reportsService.getDashboardStats(dto);
   }
 
   @Get('inventory-alerts')
-  @ApiOperation({ summary: 'Get list of parts with low stock' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get list of parts with low stock (Admin only)' })
   async getInventoryReport() {
     return this.reportsService.getInventoryReport();
   }
 
   @Get('popular-services')
-  @ApiOperation({ summary: 'Get top 5 most ordered services' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get top 5 most ordered services (Admin only)' })
   async getPopularServices() {
     return this.reportsService.getPopularServices();
   }
 
   @Get('fleet/dashboard')
   @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Get high-level Fleet KPIs (Total Cost, Cost/KM)' })
-  async getFleetDashboard(@Query() filter: GetAnalyticsFilterDto) {
-    return this.reportsService.getFleetDashboard(filter);
+  @ApiOperation({
+    summary: "Get fleet KPIs — scoped to caller's org for Account Managers",
+  })
+  async getFleetDashboard(
+    @Req() req: AuthRequest,
+    @Query() filter: GetAnalyticsFilterDto,
+  ) {
+    return this.reportsService.getFleetDashboard(filter, req.user);
   }
 
   @Get('fleet/vehicle-analysis/:carId')
   @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
   @ApiOperation({
     summary:
-      'Get Total Cost of Ownership (Fuel + Maintenance) for a specific vehicle',
+      'Get TCO for a specific vehicle — org-ownership validated for Account Managers',
   })
   async getVehicleAnalysis(
-    @Param('carId') carId: string,
+    @Req() req: AuthRequest,
+    @Param('carId', ParseUUIDPipe) carId: string,
     @Query() filter: GetAnalyticsFilterDto,
   ) {
-    return this.reportsService.getVehicleAnalysis(carId, filter);
+    return this.reportsService.getVehicleAnalysis(carId, filter, req.user);
   }
 
   @Get('fleet/driver-analysis/:driverId')
   @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Analyze driver efficiency (Liters per 100km)' })
+  @ApiOperation({
+    summary:
+      'Analyze driver efficiency — org-ownership validated for Account Managers',
+  })
   async getDriverAnalysis(
-    @Param('driverId') driverId: string,
+    @Req() req: AuthRequest,
+    @Param('driverId', ParseUUIDPipe) driverId: string,
     @Query() filter: GetAnalyticsFilterDto,
   ) {
-    return this.reportsService.getDriverAnalysis(driverId, filter);
+    return this.reportsService.getDriverAnalysis(driverId, filter, req.user);
   }
 }
 
@@ -8755,6 +8767,8 @@ import type { IReportsRepository } from './interfaces/reports.repository.interfa
 import { GetReportDto } from './dto/get-report.dto';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 import { GetAnalyticsFilterDto } from '../../fleet/dto/get-analytics-filter.dto';
+import { AuthUser } from '../../auth/types/auth-user.type';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class AdminReportsService {
@@ -8763,7 +8777,6 @@ export class AdminReportsService {
     private readonly reportsRepository: IReportsRepository,
   ) {}
 
-  // 👇 Unified helper that accepts any object with startDate/endDate strings
   private parseDateFilter(filter: { startDate?: string; endDate?: string }) {
     const startDate = filter.startDate ? new Date(filter.startDate) : undefined;
     const endDate = filter.endDate ? new Date(filter.endDate) : undefined;
@@ -8771,15 +8784,12 @@ export class AdminReportsService {
     if (startDate && isNaN(startDate.getTime())) {
       throw new BadRequestException('Invalid startDate format');
     }
-
     if (endDate && isNaN(endDate.getTime())) {
       throw new BadRequestException('Invalid endDate format');
     }
-
     if (endDate) {
       endDate.setUTCHours(23, 59, 59, 999);
     }
-
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('startDate cannot be greater than endDate');
     }
@@ -8789,12 +8799,10 @@ export class AdminReportsService {
 
   async getDashboardStats(dto: GetReportDto) {
     const { startDate, endDate } = this.parseDateFilter(dto);
-
     const metrics = await this.reportsRepository.getDashboardMetrics(
       startDate,
       endDate,
     );
-
     return new DashboardStatsDto({
       totalUsers: metrics.users,
       totalCars: metrics.cars,
@@ -8812,22 +8820,65 @@ export class AdminReportsService {
     return this.reportsRepository.getTopSellingServices();
   }
 
-  async getFleetDashboard(filter: GetAnalyticsFilterDto) {
+  /**
+   * pass organizationId for Account Manager callers.
+   * ADMIN receives undefined → sees all orgs.
+   */
+  async getFleetDashboard(
+    filter: GetAnalyticsFilterDto,
+    userContext: AuthUser,
+  ) {
     const { startDate, endDate } = this.parseDateFilter(filter);
-    return this.reportsRepository.getFleetDashboardKpis(startDate, endDate);
+    const organizationId =
+      userContext.role === UserRole.ACCOUNT_MANAGER
+        ? (userContext.organizationId ?? undefined)
+        : undefined;
+
+    return this.reportsRepository.getFleetDashboardKpis(
+      startDate,
+      endDate,
+      organizationId,
+    );
   }
 
-  async getVehicleAnalysis(carId: string, filter: GetAnalyticsFilterDto) {
+  /**
+   * pass organizationId so the repository can validate ownership.
+   */
+  async getVehicleAnalysis(
+    carId: string,
+    filter: GetAnalyticsFilterDto,
+    userContext: AuthUser,
+  ) {
     const { startDate, endDate } = this.parseDateFilter(filter);
-    return this.reportsRepository.getVehicleTco(carId, startDate, endDate);
+    const organizationId =
+      userContext.role === UserRole.ACCOUNT_MANAGER
+        ? (userContext.organizationId ?? undefined)
+        : undefined;
+
+    return this.reportsRepository.getVehicleTco(
+      carId,
+      startDate,
+      endDate,
+      organizationId,
+    );
   }
 
-  async getDriverAnalysis(driverId: string, filter: GetAnalyticsFilterDto) {
+  async getDriverAnalysis(
+    driverId: string,
+    filter: GetAnalyticsFilterDto,
+    userContext: AuthUser,
+  ) {
     const { startDate, endDate } = this.parseDateFilter(filter);
+    const organizationId =
+      userContext.role === UserRole.ACCOUNT_MANAGER
+        ? (userContext.organizationId ?? undefined)
+        : undefined;
+
     return this.reportsRepository.getDriverEfficiency(
       driverId,
       startDate,
       endDate,
+      organizationId,
     );
   }
 }
@@ -8963,21 +9014,37 @@ export interface IReportsRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics>;
+
   getLowStockParts(): Promise<Part[]>;
+
   getTopSellingServices(limit?: number): Promise<any[]>;
+
+  /**
+   * organizationId is now required for Account Manager callers.
+   * Pass undefined only for ADMIN-level queries (all orgs).
+   */
   getFleetDashboardKpis(
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<FleetDashboardKpis>;
+
+  /**
+   * caller must supply their organizationId so we can
+   * validate the carId belongs to their org before returning data.
+   */
   getVehicleTco(
     carId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<VehicleTcoAnalytics>;
+
   getDriverEfficiency(
     driverId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<DriverEfficiencyAnalytics>;
 }
 
@@ -8988,7 +9055,11 @@ export interface IReportsRepository {
 PATH: .\src\admin\reports\repositories\reports.prisma.repository.ts
 ############################################################
 
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import {
   DashboardMetrics,
   FleetDashboardKpis,
@@ -9003,33 +9074,41 @@ import { Part, OrderStatus, Prisma } from '@prisma/client';
 export class ReportsPrismaRepository implements IReportsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private buildDateFilter(
+  // ─── Helpers ─────────────────────────────────────────────────────────
+
+  private buildFuelLogDateFilter(
     startDate?: Date,
     endDate?: Date,
   ): Prisma.FuelLogWhereInput {
     if (startDate && endDate && startDate > endDate) {
       throw new BadRequestException('startDate cannot be greater than endDate');
     }
-
     const where: Prisma.FuelLogWhereInput = {};
-
     if (startDate || endDate) {
-      const createdAt: Prisma.DateTimeFilter = {};
-
-      if (startDate) createdAt.gte = startDate;
-      if (endDate) createdAt.lte = endDate;
-
-      where.createdAt = createdAt;
+      where.createdAt = {};
+      if (startDate) (where.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate) (where.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
-
     return where;
   }
+
+  private async getOrgCarIds(organizationId: string): Promise<string[]> {
+    const cars = await this.prisma.car.findMany({
+      where: {
+        organizationId,
+        deletedAt: null, // explicit — never aggregate soft-deleted vehicles
+      },
+      select: { id: true },
+    });
+    return cars.map((c) => c.id);
+  }
+
+  // Dashboard
 
   async getDashboardMetrics(
     startDate?: Date,
     endDate?: Date,
   ): Promise<DashboardMetrics> {
-    // Supports one-sided ranges: startDate-only and endDate-only both work.
     const dateFilter: Prisma.OrderWhereInput = {};
     if (startDate || endDate) {
       dateFilter.createdAt = {};
@@ -9041,9 +9120,7 @@ export class ReportsPrismaRepository implements IReportsRepository {
 
     const [users, cars, orders, revenueAgg, lowStockResult] = await Promise.all(
       [
-        // Exclude soft-deleted users from the dashboard count
         this.prisma.user.count({ where: { deletedAt: null } }),
-        // Exclude soft-deleted cars from the dashboard count
         this.prisma.car.count({ where: { deletedAt: null } }),
         this.prisma.order.count({ where: dateFilter }),
         this.prisma.order.aggregate({
@@ -9053,13 +9130,12 @@ export class ReportsPrismaRepository implements IReportsRepository {
             status: { not: OrderStatus.CANCELLED },
           },
         }),
-        // Exclude soft-deleted parts from the low-stock count
         this.prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*)::int AS count FROM "Part"
-        WHERE "lowStockThreshold" IS NOT NULL
-          AND quantity <= "lowStockThreshold"
-          AND "deletedAt" IS NULL
-      `,
+          SELECT COUNT(*)::int AS count FROM "Part"
+          WHERE "lowStockThreshold" IS NOT NULL
+            AND quantity <= "lowStockThreshold"
+            AND "deletedAt" IS NULL
+        `,
       ],
     );
 
@@ -9075,10 +9151,6 @@ export class ReportsPrismaRepository implements IReportsRepository {
   }
 
   async getLowStockParts(): Promise<Part[]> {
-    // Compare each part's quantity against its own configured threshold.
-    // The IS NOT NULL guard makes the null-exclusion behaviour explicit —
-    // parts without a configured threshold are intentionally skipped.
-    // "deletedAt" IS NULL excludes soft-deleted parts.
     return this.prisma.$queryRaw<Part[]>`
       SELECT * FROM "Part"
       WHERE "lowStockThreshold" IS NOT NULL
@@ -9091,29 +9163,22 @@ export class ReportsPrismaRepository implements IReportsRepository {
   async getTopSellingServices(limit: number = 5): Promise<any[]> {
     const result = await this.prisma.orderItem.groupBy({
       by: ['serviceId'],
-      _count: {
-        serviceId: true,
-      },
+      _count: { serviceId: true },
       where: {
         serviceId: { not: null },
+        order: { status: { not: OrderStatus.CANCELLED } },
       },
-      orderBy: {
-        _count: {
-          serviceId: 'desc',
-        },
-      },
+      orderBy: { _count: { serviceId: 'desc' } },
       take: limit,
     });
 
     const serviceIds = result.map((r) => r.serviceId as string);
-
     const services = await this.prisma.service.findMany({
       where: { id: { in: serviceIds } },
     });
 
     return result.map((r) => {
       const service = services.find((s) => s.id === r.serviceId);
-
       return {
         serviceName: service?.name ?? 'Unknown',
         count: r._count.serviceId,
@@ -9121,11 +9186,28 @@ export class ReportsPrismaRepository implements IReportsRepository {
     });
   }
 
+  // Fleet Dashboard
+
   async getFleetDashboardKpis(
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<FleetDashboardKpis> {
-    const where = this.buildDateFilter(startDate, endDate);
+    let where = this.buildFuelLogDateFilter(startDate, endDate);
+
+    if (organizationId) {
+      const orgCarIds = await this.getOrgCarIds(organizationId);
+      if (orgCarIds.length === 0) {
+        return {
+          totalFleetCost: 0,
+          totalFuelConsumedLiters: 0,
+          totalKmsDriven: 0,
+          costPerKm: 0,
+        };
+      }
+
+      where = { ...where, carId: { in: orgCarIds } };
+    }
 
     const [totals, vehicleStats] = await Promise.all([
       this.prisma.fuelLog.aggregate({
@@ -9146,32 +9228,50 @@ export class ReportsPrismaRepository implements IReportsRepository {
       return acc + (max - min);
     }, 0);
 
-    const totalFleetCost = totals._sum.totalCost ?? 0;
-
+    const totalFleetCost = Number(totals._sum.totalCost ?? 0);
+    const totalFuelConsumedLiters = Number(totals._sum.liters ?? 0);
     const costPerKm = totalKmsDriven > 0 ? totalFleetCost / totalKmsDriven : 0;
 
     return {
       totalFleetCost,
-      totalFuelConsumedLiters: totals._sum.liters ?? 0,
+      totalFuelConsumedLiters,
       totalKmsDriven,
       costPerKm: Number(costPerKm.toFixed(2)),
     };
   }
 
   // Vehicle Total Cost of Ownership
+
   async getVehicleTco(
     carId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<VehicleTcoAnalytics> {
-    const where = this.buildDateFilter(startDate, endDate);
+    if (organizationId) {
+      const car = await this.prisma.car.findFirst({
+        where: { id: carId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!car) {
+        throw new ForbiddenException(
+          'This vehicle does not belong to your organization',
+        );
+      }
+    }
 
-    const maintenanceWhere: Prisma.OrderWhereInput = { carId };
+    const where = this.buildFuelLogDateFilter(startDate, endDate);
 
+    const maintenanceWhere: Prisma.OrderWhereInput = {
+      carId,
+      status: { not: OrderStatus.CANCELLED },
+    };
     if (startDate || endDate) {
       maintenanceWhere.createdAt = {};
-      if (startDate) maintenanceWhere.createdAt.gte = startDate;
-      if (endDate) maintenanceWhere.createdAt.lte = endDate;
+      if (startDate)
+        (maintenanceWhere.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate)
+        (maintenanceWhere.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
 
     const [fuel, maintenance] = await Promise.all([
@@ -9185,7 +9285,8 @@ export class ReportsPrismaRepository implements IReportsRepository {
       }),
     ]);
 
-    const fuelCost = fuel._sum.totalCost ?? 0;
+    const fuelCost = Number(fuel._sum.totalCost ?? 0);
+    const totalLiters = Number(fuel._sum.liters ?? 0);
     const maintenanceCost = Number(maintenance._sum.totalPrice ?? 0);
 
     return {
@@ -9193,28 +9294,61 @@ export class ReportsPrismaRepository implements IReportsRepository {
       fuelCost,
       maintenanceCost,
       totalCostOfOwnership: fuelCost + maintenanceCost,
-      totalLiters: fuel._sum.liters ?? 0,
+      totalLiters,
     };
   }
 
   // Driver Efficiency Analytics
+
   async getDriverEfficiency(
     driverId: string,
     startDate?: Date,
     endDate?: Date,
+    organizationId?: string,
   ): Promise<DriverEfficiencyAnalytics> {
-    const where = this.buildDateFilter(startDate, endDate);
+    // Validate driver belongs to org (existing check)
+    if (organizationId) {
+      const driver = await this.prisma.user.findFirst({
+        where: { id: driverId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!driver) {
+        throw new ForbiddenException(
+          'This driver does not belong to your organization',
+        );
+      }
+    }
+
+    const dateFilter = this.buildFuelLogDateFilter(startDate, endDate);
+
+    let where: Prisma.FuelLogWhereInput = { driverId, ...dateFilter };
+
+    if (organizationId) {
+      const orgCarIds = await this.getOrgCarIds(organizationId);
+      if (orgCarIds.length === 0) {
+        return {
+          driverId,
+          totalFuelCost: 0,
+          totalLiters: 0,
+          totalKmsDriven: 0,
+          litersPer100Km: 0,
+          efficiencyStatus: 'UNKNOWN',
+        };
+      }
+      // Constrain to fuel logs where the car also belongs to this org
+      where = { ...where, carId: { in: orgCarIds } };
+    }
 
     const [fuel, carStats] = await Promise.all([
       this.prisma.fuelLog.aggregate({
         _sum: { totalCost: true, liters: true },
-        where: { driverId, ...where },
+        where,
       }),
       this.prisma.fuelLog.groupBy({
         by: ['carId'],
         _min: { odometerKms: true },
         _max: { odometerKms: true },
-        where: { driverId, ...where },
+        where,
       }),
     ]);
 
@@ -9224,14 +9358,14 @@ export class ReportsPrismaRepository implements IReportsRepository {
       return acc + (max - min);
     }, 0);
 
-    const totalLiters = fuel._sum.liters ?? 0;
+    const totalLiters = Number(fuel._sum.liters ?? 0);
+    const totalFuelCost = Number(fuel._sum.totalCost ?? 0);
 
     const litersPer100Km =
       totalKmsDriven > 0 ? (totalLiters / totalKmsDriven) * 100 : 0;
 
     let efficiencyStatus: DriverEfficiencyAnalytics['efficiencyStatus'] =
       'UNKNOWN';
-
     if (totalKmsDriven > 0) {
       if (litersPer100Km < 8) efficiencyStatus = 'EXCELLENT';
       else if (litersPer100Km <= 12) efficiencyStatus = 'NORMAL';
@@ -9240,7 +9374,7 @@ export class ReportsPrismaRepository implements IReportsRepository {
 
     return {
       driverId,
-      totalFuelCost: fuel._sum.totalCost ?? 0,
+      totalFuelCost,
       totalLiters,
       totalKmsDriven,
       litersPer100Km: Number(litersPer100Km.toFixed(2)),
@@ -9918,16 +10052,26 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  Inject,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { UserRole } from '@prisma/client';
 import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
-import { UserRole } from '@prisma/client';
 import { AuthUser } from '../auth/types/auth-user.type';
+import {
+  ICarsRepository,
+  CARS_REPOSITORY,
+} from './interfaces/cars.repository.interface';
+
+const PERSONAL_CAR_LIMIT = 2;
+const FLEET_CAR_LIMIT = 50;
 
 @Injectable()
 export class CarsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @Inject(CARS_REPOSITORY)
+    private readonly carsRepository: ICarsRepository,
+  ) {}
 
   async create(userContext: AuthUser, dto: CreateCarDto) {
     if (userContext.organizationId) {
@@ -9937,83 +10081,42 @@ export class CarsService {
   }
 
   private async createFleetCar(orgId: string, dto: CreateCarDto) {
-    const currentCount = await this.prisma.car.count({
-      where: { organizationId: orgId, deletedAt: null },
-    });
-
-    if (currentCount >= 50) {
+    const currentCount = await this.carsRepository.countByOrganizationId(orgId);
+    if (currentCount >= FLEET_CAR_LIMIT) {
       throw new ForbiddenException(
-        'Fleet limit reached (50). Contact sales to upgrade.',
+        `Fleet limit reached (${FLEET_CAR_LIMIT}). Contact sales to upgrade.`,
       );
     }
-
-    return this.prisma.car.create({
-      data: {
-        modelId: dto.modelId,
-        year: dto.year,
-        mileageKm: dto.mileageKm,
-        color: dto.color,
-        plateNumber: dto.plateNumber,
-        organizationId: orgId,
-        userId: null,
-        isFleetVehicle: true, // set programmatically — not from DTO
-        barcode: null, // barcode generated separately when needed
-      },
-    });
+    return this.carsRepository.createFleet(orgId, dto);
   }
 
   private async createPersonalCar(userId: string, dto: CreateCarDto) {
-    const currentCount = await this.prisma.car.count({
-      where: { userId, deletedAt: null },
-    });
-
-    if (currentCount >= 2) {
+    const currentCount = await this.carsRepository.countByUserId(userId);
+    if (currentCount >= PERSONAL_CAR_LIMIT) {
       throw new ForbiddenException(
-        'Free accounts are limited to 2 vehicles. Please upgrade.',
+        `Free accounts are limited to ${PERSONAL_CAR_LIMIT} vehicles. Please upgrade.`,
       );
     }
-
-    return this.prisma.car.create({
-      data: {
-        modelId: dto.modelId,
-        year: dto.year,
-        mileageKm: dto.mileageKm,
-        color: dto.color,
-        plateNumber: dto.plateNumber,
-        userId: userId,
-        organizationId: null,
-        isFleetVehicle: false, // personal cars are never fleet vehicles
-        barcode: null,
-      },
-    });
+    return this.carsRepository.createPersonal(userId, dto);
   }
 
   async findAll(userContext: AuthUser) {
     if (userContext.organizationId) {
-      return this.prisma.car.findMany({
-        where: { organizationId: userContext.organizationId, deletedAt: null },
-        include: { model: { include: { brand: true } } },
-      });
+      return this.carsRepository.findAllByOrganizationId(
+        userContext.organizationId,
+      );
     }
-
-    return this.prisma.car.findMany({
-      where: { userId: userContext.userId, deletedAt: null },
-      include: { model: { include: { brand: true } } },
-    });
+    return this.carsRepository.findAllByUserId(userContext.userId);
   }
 
   async findOne(id: string, userContext: AuthUser) {
-    const car = await this.prisma.car.findUnique({
-      where: { id },
-      include: { model: true },
-    });
+    const car = await this.carsRepository.findById(id);
 
-    if (!car || car.deletedAt !== null) {
+    if (!car) {
       throw new NotFoundException('Car not found');
     }
 
     const isMyPersonal = car.userId === userContext.userId;
-    // Guard: organizationId must be non-null on BOTH sides to match
     const isMyFleet =
       userContext.organizationId != null &&
       car.organizationId === userContext.organizationId;
@@ -10027,15 +10130,12 @@ export class CarsService {
 
   async update(id: string, dto: UpdateCarDto, userContext: AuthUser) {
     await this.findOne(id, userContext);
-    return this.prisma.car.update({ where: { id }, data: dto });
+    return this.carsRepository.update(id, dto);
   }
 
   async remove(id: string, userContext: AuthUser) {
     await this.findOne(id, userContext);
-    return this.prisma.car.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    return this.carsRepository.softDelete(id);
   }
 }
 
@@ -10160,11 +10260,24 @@ import { UpdateCarDto } from '../dto/update-car.dto';
 export const CARS_REPOSITORY = 'CARS_REPOSITORY';
 
 export interface ICarsRepository {
-  create(userId: string, data: CreateCarDto): Promise<Car>;
+  /** Create a personal car owned by userId */
+  createPersonal(userId: string, data: CreateCarDto): Promise<Car>;
+
+  /** Create a fleet car owned by an organization */
+  createFleet(organizationId: string, data: CreateCarDto): Promise<Car>;
+
+  /** Count non-deleted cars for a user (personal limit check) */
+  countByUserId(userId: string): Promise<number>;
+
+  /** Count non-deleted cars for an org (fleet limit check) */
+  countByOrganizationId(organizationId: string): Promise<number>;
+
   findAllByUserId(userId: string): Promise<Car[]>;
+  findAllByOrganizationId(organizationId: string): Promise<Car[]>;
   findById(id: string): Promise<Car | null>;
   update(id: string, data: UpdateCarDto): Promise<Car>;
   softDelete(id: string): Promise<void>;
+
   findByIdentifier(identifier: {
     plateNumber?: string;
     vin?: string;
@@ -10185,28 +10298,70 @@ import { CreateCarDto } from '../dto/create-car.dto';
 import { UpdateCarDto } from '../dto/update-car.dto';
 import { Car } from '@prisma/client';
 
+const CAR_INCLUDE = {
+  model: { include: { brand: true } },
+} as const;
+
 @Injectable()
 export class CarsPrismaRepository implements ICarsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, data: CreateCarDto): Promise<Car> {
+  async createPersonal(userId: string, data: CreateCarDto): Promise<Car> {
     return this.prisma.car.create({
       data: {
+        modelId: data.modelId,
+        year: data.year,
+        mileageKm: data.mileageKm,
+        color: data.color,
+        plateNumber: data.plateNumber,
         userId,
-        ...data,
+        organizationId: null,
+        isFleetVehicle: false,
+        barcode: null,
       },
-      include: { model: { include: { brand: true } } },
+      include: CAR_INCLUDE,
+    });
+  }
+
+  async createFleet(organizationId: string, data: CreateCarDto): Promise<Car> {
+    return this.prisma.car.create({
+      data: {
+        modelId: data.modelId,
+        year: data.year,
+        mileageKm: data.mileageKm,
+        color: data.color,
+        plateNumber: data.plateNumber,
+        organizationId,
+        userId: null,
+        isFleetVehicle: true,
+        barcode: null,
+      },
+      include: CAR_INCLUDE,
+    });
+  }
+
+  async countByUserId(userId: string): Promise<number> {
+    return this.prisma.car.count({ where: { userId, deletedAt: null } });
+  }
+
+  async countByOrganizationId(organizationId: string): Promise<number> {
+    return this.prisma.car.count({
+      where: { organizationId, deletedAt: null },
     });
   }
 
   async findAllByUserId(userId: string): Promise<Car[]> {
     return this.prisma.car.findMany({
       where: { userId, deletedAt: null },
-      include: {
-        model: {
-          include: { brand: true },
-        },
-      },
+      include: CAR_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findAllByOrganizationId(organizationId: string): Promise<Car[]> {
+    return this.prisma.car.findMany({
+      where: { organizationId, deletedAt: null },
+      include: CAR_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -10214,7 +10369,7 @@ export class CarsPrismaRepository implements ICarsRepository {
   async findById(id: string): Promise<Car | null> {
     return this.prisma.car.findFirst({
       where: { id, deletedAt: null },
-      include: { model: { include: { brand: true } } },
+      include: CAR_INCLUDE,
     });
   }
 
@@ -10222,20 +10377,13 @@ export class CarsPrismaRepository implements ICarsRepository {
     plateNumber?: string;
   }): Promise<Car | null> {
     const orConditions: any[] = [];
-
     if (identifier.plateNumber) {
       orConditions.push({ plateNumber: identifier.plateNumber });
     }
-
-    if (orConditions.length === 0) {
-      return null;
-    }
+    if (orConditions.length === 0) return null;
 
     return this.prisma.car.findFirst({
-      where: {
-        OR: orConditions,
-        deletedAt: null,
-      },
+      where: { OR: orConditions, deletedAt: null },
     });
   }
 
@@ -10243,7 +10391,7 @@ export class CarsPrismaRepository implements ICarsRepository {
     return this.prisma.car.update({
       where: { id },
       data,
-      include: { model: { include: { brand: true } } },
+      include: CAR_INCLUDE,
     });
   }
 
@@ -10267,29 +10415,40 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaginationDto {
-  @ApiPropertyOptional({
-    description: 'Number of records to skip',
-    example: 0,
-    minimum: 0,
-  })
+  @ApiPropertyOptional({ example: 0, minimum: 0 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   skip?: number;
 
-  @ApiPropertyOptional({
-    description: 'Number of records to return (max 100)',
-    example: 20,
-    minimum: 1,
-    maximum: 100,
-  })
+  @ApiPropertyOptional({ example: 20, minimum: 1, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
   take?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  skip: number;
+  take: number;
+}
+
+export function paginate<T>(
+  data: T[],
+  total: number,
+  pagination: PaginationDto,
+): PaginatedResult<T> {
+  return {
+    data,
+    total,
+    skip: pagination.skip ?? 0,
+    take: pagination.take ?? 20,
+  };
 }
 
 
@@ -10885,6 +11044,7 @@ export class CreateFuelLogDto {
   notes?: string;
 }
 
+
 ******************** END OF FILE ********************
 
 ############################################################
@@ -11038,7 +11198,7 @@ export class FleetPrismaRepository implements IFleetRepository {
         plateNumber: true,
         year: true,
         isFleetVehicle: true,
-        organizationId: true, // included for org-scope check in service
+        organizationId: true,
         model: {
           select: {
             name: true,
@@ -11056,7 +11216,7 @@ export class FleetPrismaRepository implements IFleetRepository {
         id: true,
         isFleetVehicle: true,
         mileageKm: true,
-        organizationId: true, // included for org-scope check in service
+        organizationId: true,
       },
     });
   }
@@ -11085,8 +11245,8 @@ export class FleetPrismaRepository implements IFleetRepository {
           carId: dto.carId,
           odometerKms: dto.odometerKms,
           fuelType: dto.fuelType,
-          liters: dto.liters,
-          totalCost: dto.totalCost,
+          liters: new Prisma.Decimal(dto.liters),
+          totalCost: new Prisma.Decimal(dto.totalCost),
           notes: dto.notes,
         },
       });
@@ -11105,7 +11265,6 @@ export class FleetPrismaRepository implements IFleetRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<VehicleCostAnalyticsRaw[]> {
-    // Scope to org: only fuel logs for cars belonging to this organization
     const orgCarIds = await this.getOrgCarIds(organizationId);
     if (orgCarIds.length === 0) return [];
 
@@ -11134,7 +11293,17 @@ export class FleetPrismaRepository implements IFleetRepository {
     });
 
     const carMap = new Map(cars.map((c) => [c.id, c]));
-    return analysis.map((item) => ({ item, car: carMap.get(item.carId) }));
+    return analysis.map((item) => ({
+      // Convert Decimal aggregates to number for the raw interface
+      item: {
+        ...item,
+        _sum: {
+          totalCost: item._sum.totalCost ? Number(item._sum.totalCost) : null,
+          liters: item._sum.liters ? Number(item._sum.liters) : null,
+        },
+      },
+      car: carMap.get(item.carId),
+    }));
   }
 
   async getCostAnalyticsByDriver(
@@ -11142,7 +11311,6 @@ export class FleetPrismaRepository implements IFleetRepository {
     startDate?: Date,
     endDate?: Date,
   ): Promise<DriverCostAnalyticsRaw[]> {
-    // Scope to org: only fuel logs for cars belonging to this organization
     const orgCarIds = await this.getOrgCarIds(organizationId);
     if (orgCarIds.length === 0) return [];
 
@@ -11166,7 +11334,13 @@ export class FleetPrismaRepository implements IFleetRepository {
 
     const driverMap = new Map(drivers.map((d) => [d.id, d]));
     return analysis.map((item) => ({
-      item,
+      item: {
+        ...item,
+        _sum: {
+          totalCost: item._sum.totalCost ? Number(item._sum.totalCost) : null,
+          liters: item._sum.liters ? Number(item._sum.liters) : null,
+        },
+      },
       driver: driverMap.get(item.driverId),
     }));
   }
@@ -11198,15 +11372,14 @@ export class FleetPrismaRepository implements IFleetRepository {
       id: log.id,
       odometerKms: log.odometerKms,
       fuelType: log.fuelType,
-      liters: log.liters,
-      totalCost: log.totalCost,
+      // Convert Decimal to number for the response
+      liters: Number(log.liters),
+      totalCost: Number(log.totalCost),
       notes: log.notes,
       driverName: log.driver.name,
       createdAt: log.createdAt,
     }));
   }
-
-  // ─── Helpers ─────────────────────────────────────────────────────────────
 
   private async getOrgCarIds(organizationId: string): Promise<string[]> {
     const cars = await this.prisma.car.findMany({
@@ -11226,8 +11399,8 @@ export class FleetPrismaRepository implements IFleetRepository {
     const where: Prisma.FuelLogWhereInput = {};
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) where.createdAt.gte = startDate;
-      if (endDate) where.createdAt.lte = endDate;
+      if (startDate) (where.createdAt as Prisma.DateTimeFilter).gte = startDate;
+      if (endDate) (where.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
     return where;
   }
@@ -12297,27 +12470,57 @@ export class MaintenanceService {
 PATH: .\src\maintenance\dto\create-maintenance-rule.dto.ts
 ############################################################
 
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsUUID,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+/**
+ * At least one of intervalKm or intervalMonths must be provided.
+ * The @ValidateIf guards below implement this XOR-minimum constraint:
+ *   - intervalKm is required when intervalMonths is absent
+ *   - intervalMonths is required when intervalKm is absent
+ * A rule with both is valid; a rule with neither is rejected.
+ */
 export class CreateMaintenanceRuleDto {
+  @ApiProperty({ description: 'UUID of the Service' })
   @IsNotEmpty()
   @IsUUID()
-  serviceId!: string; // e.g. "Oil Change" ID
+  serviceId!: string;
 
+  @ApiProperty({ description: 'UUID of the CarModel' })
   @IsNotEmpty()
   @IsUUID()
-  modelId!: string;   // e.g. "Toyota Corolla" ID (This is the new DNA link)
+  modelId!: string;
 
-  @IsOptional()
-  @IsInt()
+  @ApiPropertyOptional({
+    example: 10000,
+    description:
+      'Service interval in kilometres (required if intervalMonths is absent)',
+  })
+  @ValidateIf((o: CreateMaintenanceRuleDto) => o.intervalMonths == null)
+  @IsInt({ message: 'intervalKm is required when intervalMonths is not set' })
   @Min(1000)
-  intervalKm?: number; // e.g. 10000
-
   @IsOptional()
-  @IsInt()
+  intervalKm?: number;
+
+  @ApiPropertyOptional({
+    example: 6,
+    description:
+      'Service interval in months (required if intervalKm is absent)',
+  })
+  @ValidateIf((o: CreateMaintenanceRuleDto) => o.intervalKm == null)
+  @IsInt({ message: 'intervalMonths is required when intervalKm is not set' })
   @Min(1)
-  intervalMonths?: number; // e.g. 12
+  @IsOptional()
+  intervalMonths?: number;
 }
+
 
 ******************** END OF FILE ********************
 
@@ -12712,6 +12915,8 @@ import {
   UseGuards,
   Request as Req,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -12750,7 +12955,7 @@ export class OrdersController {
   @ApiOperation({ summary: 'List orders (scoped by role)' })
   findAll(@Req() req: AuthRequest, @Query() pagination: PaginationDto) {
     const { userId, role } = req.user;
-    return this.ordersService.findAll(pagination, userId, role);
+    return this.ordersService.findAll(pagination, userId, role, req.user);
   }
 
   @Get(':id')
@@ -12760,14 +12965,35 @@ export class OrdersController {
     return this.ordersService.findOne(id, userId, role);
   }
 
+  // ── User-initiated cancellation ─────────────────────────────────────────
+  // Separate endpoint so regular users can cancel their own orders without
+  // needing ADMIN or ACCOUNT_MANAGER role.
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Cancel an order (owner, Account Manager, or Admin)',
+    description:
+      'A user can cancel their own PENDING or CONFIRMED order. ' +
+      'ADMIN and ACCOUNT_MANAGER can cancel any order in their scope.',
+  })
+  @ApiResponse({ status: 200, description: 'Order cancelled' })
+  @ApiResponse({ status: 400, description: 'Invalid state transition' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Order not found' })
+  cancelOrder(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) {
+    return this.ordersService.cancelOrder(id, req.user);
+  }
+
+  // ── Admin / Account Manager status advancement ──────────────────────────
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER)
   @ApiOperation({
     summary: 'Update order status (Admin / Account Manager only)',
     description:
-      'Valid transitions: PENDING→CONFIRMED|CANCELLED, CONFIRMED→IN_PROGRESS|CANCELLED, IN_PROGRESS→COMPLETED. ' +
-      'COMPLETED and CANCELLED are terminal states. Cancellation automatically reverses stock.',
+      'Valid transitions: PENDING→CONFIRMED|CANCELLED, CONFIRMED→IN_PROGRESS|CANCELLED, ' +
+      'IN_PROGRESS→COMPLETED. COMPLETED and CANCELLED are terminal. ' +
+      'Cancellation automatically reverses stock.',
   })
   @ApiResponse({ status: 200, description: 'Order status updated' })
   @ApiResponse({ status: 400, description: 'Invalid state transition' })
@@ -12995,7 +13221,7 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { OrderStatus, UserRole } from '@prisma/client';
 import {
   IOrdersRepository,
   ORDERS_REPOSITORY,
@@ -13006,7 +13232,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { AuthUser } from '../auth/types/auth-user.type';
-import { assertValidTransition, isCancellation } from './order-state-machine';
+import { assertValidTransition } from './order-state-machine';
 
 @Injectable()
 export class OrdersService {
@@ -13018,16 +13244,13 @@ export class OrdersService {
   ) {}
 
   async create(userContext: AuthUser, dto: CreateOrderDto) {
-    // Ownership check — throws ForbiddenException / NotFoundException
     await this.carsService.findOne(dto.carId, userContext);
 
-    // 👈 Note: Make sure the repository interface returns the nested items!
     const order = await this.ordersRepository.createTransactional(
       userContext.userId,
       dto,
     );
 
-    // Trigger low-stock checks for every part in the order (fire-and-forget)
     if (order.items && order.items.length > 0) {
       for (const item of order.items) {
         if (item.partId) {
@@ -13041,13 +13264,29 @@ export class OrdersService {
     return order;
   }
 
-  async findAll(pagination: PaginationDto, userId: string, role: UserRole) {
-    const filterUserId =
-      role === UserRole.ADMIN || role === UserRole.ACCOUNT_MANAGER
-        ? undefined
-        : userId;
+  async findAll(
+    pagination: PaginationDto,
+    userId: string,
+    role: UserRole,
+    userContext: AuthUser,
+  ) {
+    if (role === UserRole.ADMIN) {
+      return this.ordersRepository.findAll(pagination, undefined);
+    }
 
-    return this.ordersRepository.findAll(pagination, filterUserId);
+    if (role === UserRole.ACCOUNT_MANAGER) {
+      if (!userContext.organizationId) {
+        // Manager without an org — safe fallback to own orders only
+        return this.ordersRepository.findAll(pagination, userId);
+      }
+      return this.ordersRepository.findAllByOrganization(
+        pagination,
+        userContext.organizationId,
+      );
+    }
+
+    // USER and DRIVER see only their own orders
+    return this.ordersRepository.findAll(pagination, userId);
   }
 
   async findOne(id: string, userId: string, role: UserRole) {
@@ -13064,6 +13303,38 @@ export class OrdersService {
     return order;
   }
 
+  async cancelOrder(id: string, userContext: AuthUser) {
+    const order = await this.ordersRepository.findById(id);
+    if (!order) throw new NotFoundException('Order not found');
+
+    const isAdmin = userContext.role === UserRole.ADMIN;
+    const isManager = userContext.role === UserRole.ACCOUNT_MANAGER;
+
+    if (isManager) {
+      // Account Manager can only cancel orders for cars in their org
+      if (
+        !order.car ||
+        order.car.organizationId !== userContext.organizationId
+      ) {
+        throw new ForbiddenException(
+          'You can only cancel orders for vehicles in your organization',
+        );
+      }
+    } else if (!isAdmin) {
+      // Regular user can only cancel their own orders
+      if (order.userId !== userContext.userId) {
+        throw new ForbiddenException('You cannot cancel this order');
+      }
+    }
+
+    assertValidTransition(order.status, OrderStatus.CANCELLED);
+
+    return this.ordersRepository.updateStatusAtomically(
+      id,
+      OrderStatus.CANCELLED,
+    );
+  }
+
   async updateStatus(
     id: string,
     dto: UpdateOrderStatusDto,
@@ -13072,27 +13343,21 @@ export class OrdersService {
     const order = await this.ordersRepository.findById(id);
     if (!order) throw new NotFoundException('Order not found');
 
-    // 👈 THE FIX: Enforce authorization for status updates
-    const isPrivileged =
-      userContext.role === UserRole.ADMIN ||
-      userContext.role === UserRole.ACCOUNT_MANAGER;
-
-    // A regular user can only update their own order (e.g., to cancel it)
-    if (!isPrivileged && order.userId !== userContext.userId) {
-      throw new ForbiddenException(
-        'You do not have permission to update this order',
-      );
+    // Account Manager can only update orders for cars in their org
+    if (userContext.role === UserRole.ACCOUNT_MANAGER) {
+      if (
+        !order.car ||
+        order.car.organizationId !== userContext.organizationId
+      ) {
+        throw new ForbiddenException(
+          'You can only update orders for vehicles in your organization',
+        );
+      }
     }
 
-    // Validate the state transition
     assertValidTransition(order.status, dto.status);
 
-    // Reverse stock on cancellation
-    if (isCancellation(dto.status)) {
-      await this.ordersRepository.reverseStockForOrder(id);
-    }
-
-    return this.ordersRepository.updateStatus(id, dto.status);
+    return this.ordersRepository.updateStatusAtomically(id, dto.status);
   }
 }
 
@@ -13342,26 +13607,47 @@ export class UpdateOrderStatusDto {
 PATH: .\src\orders\interfaces\orders.repository.interface.ts
 ############################################################
 
-import { Order, OrderItem, OrderStatus } from '@prisma/client';
+import { Car, Order, OrderItem, OrderStatus } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  PaginatedResult,
+} from '../../common/dto/pagination.dto';
 
 export const ORDERS_REPOSITORY = 'ORDERS_REPOSITORY';
 
-export type OrderWithItems = Order & { items: OrderItem[] };
+export type OrderWithItems = Order & {
+  items: OrderItem[];
+  car?: Car;
+};
 
 export interface IOrdersRepository {
   createTransactional(
     userId: string,
     data: CreateOrderDto,
   ): Promise<OrderWithItems>;
+
   findAll(
     pagination: PaginationDto,
     userId?: string,
     status?: OrderStatus,
-  ): Promise<OrderWithItems[]>;
+  ): Promise<PaginatedResult<OrderWithItems>>;
+
+  findAllByOrganization(
+    pagination: PaginationDto,
+    organizationId: string,
+  ): Promise<PaginatedResult<OrderWithItems>>;
+
   findById(id: string): Promise<OrderWithItems | null>;
+
+  updateStatusAtomically(
+    orderId: string,
+    newStatus: OrderStatus,
+  ): Promise<OrderWithItems>;
+
+  /** @deprecated Use updateStatusAtomically instead */
   updateStatus(id: string, status: OrderStatus): Promise<Order>;
+
   reverseStockForOrder(orderId: string): Promise<void>;
 }
 
@@ -13378,18 +13664,28 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { Order, OrderStatus, Prisma } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-
+import {
+  PaginationDto,
+  PaginatedResult,
+} from '../../common/dto/pagination.dto';
 import {
   IOrdersRepository,
   OrderWithItems,
 } from '../interfaces/orders.repository.interface';
+import { assertValidTransition, isCancellation } from '../order-state-machine';
+
+// Shared include shape — keeps all queries consistent
+const ORDER_INCLUDE = {
+  items: { include: { part: true, service: true } },
+} as const;
 
 @Injectable()
 export class OrdersPrismaRepository implements IOrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Create ────────────────────────────────────────────────────────────
 
   async createTransactional(
     userId: string,
@@ -13403,7 +13699,6 @@ export class OrdersPrismaRepository implements IOrdersRepository {
         let price = 0;
 
         if (item.partId) {
-          // Exclude soft-deleted parts
           const part = await tx.part.findFirst({
             where: { id: item.partId, deletedAt: null },
           });
@@ -13430,7 +13725,6 @@ export class OrdersPrismaRepository implements IOrdersRepository {
             price: new Prisma.Decimal(price),
           });
         } else if (item.serviceId) {
-          // Exclude soft-deleted and inactive services
           const service = await tx.service.findFirst({
             where: { id: item.serviceId, deletedAt: null, isActive: true },
           });
@@ -13462,65 +13756,150 @@ export class OrdersPrismaRepository implements IOrdersRepository {
           totalPrice: new Prisma.Decimal(totalPrice),
           items: { create: orderItemsData },
         },
-        include: {
-          items: { include: { part: true, service: true } },
-        },
+        include: ORDER_INCLUDE,
       });
     });
   }
+
+  // ─── Read ──────────────────────────────────────────────────────────────
 
   async findAll(
     pagination: PaginationDto,
     userId?: string,
     status?: OrderStatus,
-  ): Promise<OrderWithItems[]> {
+  ): Promise<PaginatedResult<OrderWithItems>> {
     const { skip = 0, take = 20 } = pagination;
     const where: Prisma.OrderWhereInput = {};
     if (userId) where.userId = userId;
     if (status) where.status = status;
 
-    return this.prisma.order.findMany({
-      skip,
-      take,
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        items: { include: { part: true, service: true } },
+    const [data, total] = await Promise.all([
+      this.prisma.order.findMany({
+        skip,
+        take,
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: ORDER_INCLUDE,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return { data, total, skip, take };
+  }
+
+  async findAllByOrganization(
+    pagination: PaginationDto,
+    organizationId: string,
+  ): Promise<PaginatedResult<OrderWithItems>> {
+    const { skip = 0, take = 20 } = pagination;
+
+    const where: Prisma.OrderWhereInput = {
+      car: {
+        organizationId,
+        deletedAt: null,
       },
-    });
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.order.findMany({
+        skip,
+        take,
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: ORDER_INCLUDE,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return { data, total, skip, take };
   }
 
   async findById(id: string): Promise<OrderWithItems | null> {
     return this.prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { part: true, service: true } },
+        ...ORDER_INCLUDE,
         car: { include: { model: { include: { brand: true } } } },
         user: true,
       },
     });
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<OrderWithItems> {
+  /**
+   * Reads the current order with a row-level lock inside a serializable
+   * transaction, validates the state transition, reverses stock if cancelling,
+   * then writes the new status — all atomically.
+   *
+   * Using Prisma interactive transactions with READ COMMITTED isolation is the
+   * default. For the strongest guarantee against concurrent double-cancellation
+   * we issue a raw SELECT ... FOR UPDATE before reading the row, ensuring only
+   * one concurrent caller proceeds at a time.
+   */
+  async updateStatusAtomically(
+    orderId: string,
+    newStatus: OrderStatus,
+  ): Promise<OrderWithItems> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Row-level lock — prevents concurrent transactions from reading the
+        // same order status simultaneously and both passing the transition check.
+        await tx.$executeRaw`
+          SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE
+        `;
+
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          include: { items: true },
+        });
+
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
+
+        // Re-validate transition inside the lock — the state may have changed
+        // between the service-layer check and this transaction acquiring the lock.
+        assertValidTransition(order.status, newStatus);
+
+        // Reverse stock for every part item if this is a cancellation
+        if (isCancellation(newStatus)) {
+          const partItems = order.items.filter((item) => item.partId !== null);
+          for (const item of partItems) {
+            await tx.part.update({
+              where: { id: item.partId! },
+              data: { quantity: { increment: item.quantity } },
+            });
+          }
+        }
+
+        return tx.order.update({
+          where: { id: orderId },
+          data: { status: newStatus },
+          include: ORDER_INCLUDE,
+        });
+      },
+      {
+        // SERIALIZABLE ensures the SELECT FOR UPDATE fully isolates the row
+        // from concurrent writes during the transaction window.
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
+  /** @deprecated Use updateStatusAtomically */
+  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
     return this.prisma.order.update({
       where: { id },
       data: { status },
-      include: {
-        items: { include: { part: true, service: true } },
-      },
+      include: ORDER_INCLUDE,
     });
   }
 
-  /**
-   * Reverse stock decrements for all part items in an order.
-   * Called inside a transaction when an order is cancelled.
-   */
+  /** @deprecated Subsumed by updateStatusAtomically */
   async reverseStockForOrder(orderId: string): Promise<void> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true },
     });
-
     if (!order) return;
 
     await this.prisma.$transaction(

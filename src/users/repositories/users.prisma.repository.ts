@@ -83,7 +83,7 @@ export class UsersPrismaRepository implements IUsersRepository {
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       where: { email, deletedAt: null },
       include: { organization: true },
     });

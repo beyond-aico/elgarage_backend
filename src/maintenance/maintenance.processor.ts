@@ -16,14 +16,14 @@ interface MaintenanceJobData {
 @Injectable()
 export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MaintenanceProcessor.name);
-  private worker: Worker<MaintenanceJobData>;
+  private worker?: Worker<MaintenanceJobData>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
 
-  onModuleInit() {
+  onModuleInit(): void {
     this.worker = new Worker<MaintenanceJobData>(
       'maintenance',
       (job: Job<MaintenanceJobData>) => this.handleCheckMaintenance(job),
@@ -32,12 +32,17 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(
-        `Maintenance job failed for car ${job?.data.carId}: ${err.message}`,
+        `Maintenance job failed for car ${job?.data.carId ?? 'unknown'}: ${err.message}`,
+        err.stack,
       );
+    });
+
+    this.worker.on('error', (err) => {
+      this.logger.error(`Maintenance worker error: ${err.message}`, err.stack);
     });
   }
 
-  async onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
   }
 

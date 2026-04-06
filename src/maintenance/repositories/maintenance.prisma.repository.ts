@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MaintenanceRecord } from '@prisma/client';
 import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
 import { RecordMaintenanceDto } from '../dto/record-maintenance.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class MaintenanceRepository {
@@ -56,11 +57,17 @@ export class MaintenanceRepository {
     });
   }
 
-  async findRecordsByCarId(carId: string): Promise<MaintenanceRecord[]> {
+  async findRecordsByCarId(
+    carId: string,
+    pagination?: PaginationDto,
+  ): Promise<MaintenanceRecord[]> {
+    const { skip = 0, take = 50 } = pagination ?? {};
     return this.prisma.maintenanceRecord.findMany({
       where: { carId },
       include: { service: true },
       orderBy: { performedAt: 'desc' },
+      skip,
+      take,
     });
   }
 

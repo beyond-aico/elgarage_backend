@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Car, UserRole } from '@prisma/client';
 import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
 import { AuthUser } from '../auth/types/auth-user.type';
@@ -81,6 +81,22 @@ export class CarsService {
   async update(id: string, dto: UpdateCarDto, userContext: AuthUser) {
     await this.findOne(id, userContext);
     return this.carsRepository.update(id, dto);
+  }
+
+  async assignBarcode(
+    carId: string,
+    barcode: string,
+    userContext: AuthUser,
+  ): Promise<Car> {
+    const car = await this.findOne(carId, userContext);
+
+    if (!car.isFleetVehicle) {
+      throw new ForbiddenException(
+        'Barcodes can only be assigned to fleet vehicles',
+      );
+    }
+
+    return this.carsRepository.assignBarcode(carId, barcode);
   }
 
   async remove(id: string, userContext: AuthUser) {

@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
   ParseUUIDPipe,
@@ -24,6 +25,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { AuthUser } from '../auth/types/auth-user.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Maintenance')
 @ApiBearerAuth()
@@ -78,12 +80,17 @@ export class MaintenanceController {
 
   @Get('records/:carId')
   @ApiParam({ name: 'carId', description: 'UUID of the car' })
-  @ApiOperation({ summary: 'Get full maintenance history for a car' })
+  @ApiOperation({ summary: 'Get paginated maintenance history for a car' })
   getMaintenanceHistory(
     @Req() req: Request & { user: AuthUser },
     @Param('carId', ParseUUIDPipe) carId: string,
+    @Query() pagination: PaginationDto,
   ) {
-    return this.maintenanceService.getMaintenanceHistory(carId, req.user);
+    return this.maintenanceService.getMaintenanceHistory(
+      carId,
+      req.user,
+      pagination,
+    );
   }
 
   // ─── Health Status ────────────────────────────────────────────────────────

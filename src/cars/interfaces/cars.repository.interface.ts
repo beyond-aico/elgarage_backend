@@ -23,6 +23,8 @@ export interface ICarsRepository {
   update(id: string, data: UpdateCarDto): Promise<Car>;
   softDelete(id: string): Promise<void>;
 
+  assignBarcode(carId: string, barcode: string): Promise<Car>;
+
   findByIdentifier(identifier: {
     plateNumber?: string;
     vin?: string;
