@@ -29,9 +29,6 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
-// Extracts correlation IDs from res.locals with full type safety.
-// customProps receives the raw Node.js IncomingMessage and ServerResponse —
-// we cast ServerResponse to access locals which Express attaches at runtime.
 function extractCorrelationProps(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -50,6 +47,8 @@ const moduleMetadata: ModuleMetadata = {
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: envValidationSchema,
+      // abortEarly: false reports all invalid variables at once.
+      // allowUnknown is already set to true inside the schema itself.
       validationOptions: {
         abortEarly: false,
       },
@@ -80,8 +79,6 @@ const moduleMetadata: ModuleMetadata = {
         process.env.NODE_ENV === 'production'
           ? {
               level: 'info',
-              // customProps is the correct pino-http option for attaching
-              // extra fields to every log line from the request context.
               customProps: extractCorrelationProps,
               redact: {
                 paths: [
