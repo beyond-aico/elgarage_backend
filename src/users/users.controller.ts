@@ -41,11 +41,28 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Create a new user (Admin only)' })
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER)
+  @ApiOperation({
+    summary: 'Create a new user',
+    description:
+      'ADMIN can create any role except DRIVER. ' +
+      'ACCOUNT_MANAGER can only create DRIVER accounts — ' +
+      'organizationId is resolved automatically from their session.',
+  })
   @ApiResponse({ status: 201, description: 'User created' })
-  async create(@Body() dto: CreateUserDto) {
-    const user = await this.usersService.create(dto);
+  @ApiResponse({
+    status: 400,
+    description: 'ACCOUNT_MANAGER attempted to create a non-DRIVER role',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Caller has no organizationId in session',
+  })
+  async create(
+    @Req() req: Request & { user: AuthUser },
+    @Body() dto: CreateUserDto,
+  ) {
+    const user = await this.usersService.create(dto, req.user);
     return new UserResponseDto(user);
   }
 

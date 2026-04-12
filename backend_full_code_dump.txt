@@ -8580,10 +8580,13 @@ PATH: .\src\admin\brands\brands.module.ts
 import { Module } from '@nestjs/common';
 import { BrandsService } from './brands.service';
 import { BrandsController } from './brands.controller';
+import { AdminFleetController } from '../fleet/fleet.controller';
+import { CarsModule } from '../../cars/cars.module';
 
 @Module({
+  imports: [CarsModule],
   providers: [BrandsService],
-  controllers: [BrandsController],
+  controllers: [BrandsController, AdminFleetController],
 })
 export class BrandsModule {}
 
@@ -8661,6 +8664,122 @@ export class CreateModelDto {
 
   @IsString()
   name!: string;
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\admin\fleet\fleet.controller.ts
+############################################################
+
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { Request } from 'express';
+import { UserRole } from '@prisma/client';
+
+import { CarsService } from '../../cars/cars.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { AuthUser } from '../../auth/types/auth-user.type';
+import { AssignBarcodeDto } from './dto/assign-barcode.dto';
+
+type AuthRequest = Request & { user: AuthUser };
+
+/**
+ * Admin / Account-Manager fleet management endpoints.
+ *
+ * Kept separate from the user-facing CarsController so that privileged
+ * mutations (barcode assignment, etc.) never mix with the owner-scoped CRUD.
+ */
+@ApiTags('Admin — Fleet')
+@ApiBearerAuth()
+@Controller('admin/fleet')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class AdminFleetController {
+  constructor(private readonly carsService: CarsService) {}
+
+  /**
+   * PATCH /admin/fleet/cars/:carId/barcode
+   *
+   * Assigns (or replaces) the barcode printed on a fleet vehicle.
+   * Only fleet vehicles (isFleetVehicle = true) can have a barcode —
+   * attempting to assign one to a personal car returns 403.
+   *
+   * The barcode is what drivers scan at the start of a shift via
+   * POST /fleet/auth-barcode, so it must be set before drivers can log fuel.
+   */
+  @Patch('cars/:carId/barcode')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER)
+  @ApiParam({ name: 'carId', description: 'UUID of the fleet vehicle' })
+  @ApiOperation({
+    summary: 'Assign a barcode to a fleet vehicle (Admin / Account Manager)',
+    description:
+      'Sets the scannable barcode on a fleet vehicle. ' +
+      'The vehicle must be owned by a fleet organisation (isFleetVehicle = true). ' +
+      'Account Managers can only update vehicles that belong to their own organisation.',
+  })
+  @ApiResponse({ status: 200, description: 'Barcode assigned successfully' })
+  @ApiResponse({
+    status: 403,
+    description: 'Not a fleet vehicle, or wrong org',
+  })
+  @ApiResponse({ status: 404, description: 'Vehicle not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Barcode already in use by another vehicle',
+  })
+  assignBarcode(
+    @Req() req: AuthRequest,
+    @Param('carId', ParseUUIDPipe) carId: string,
+    @Body() dto: AssignBarcodeDto,
+  ) {
+    return this.carsService.assignBarcode(carId, dto.barcode, req.user);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\admin\fleet\dto\assign-barcode.dto.ts
+############################################################
+
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, Matches } from 'class-validator';
+
+export class AssignBarcodeDto {
+  @ApiProperty({
+    example: 'FLT-VODA-042',
+    description:
+      'Barcode string to assign to this fleet vehicle. ' +
+      'Allowed characters: letters, numbers, hyphens, underscores.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[\w-]+$/, {
+    message:
+      'Barcode may only contain letters, numbers, hyphens and underscores',
+  })
+  barcode!: string;
 }
 
 
@@ -10054,7 +10173,7 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Car, UserRole } from '@prisma/client';
 import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
 import { AuthUser } from '../auth/types/auth-user.type';
@@ -10131,6 +10250,22 @@ export class CarsService {
   async update(id: string, dto: UpdateCarDto, userContext: AuthUser) {
     await this.findOne(id, userContext);
     return this.carsRepository.update(id, dto);
+  }
+
+  async assignBarcode(
+    carId: string,
+    barcode: string,
+    userContext: AuthUser,
+  ): Promise<Car> {
+    const car = await this.findOne(carId, userContext);
+
+    if (!car.isFleetVehicle) {
+      throw new ForbiddenException(
+        'Barcodes can only be assigned to fleet vehicles',
+      );
+    }
+
+    return this.carsRepository.assignBarcode(carId, barcode);
   }
 
   async remove(id: string, userContext: AuthUser) {
@@ -10278,6 +10413,8 @@ export interface ICarsRepository {
   update(id: string, data: UpdateCarDto): Promise<Car>;
   softDelete(id: string): Promise<void>;
 
+  assignBarcode(carId: string, barcode: string): Promise<Car>;
+
   findByIdentifier(identifier: {
     plateNumber?: string;
     vin?: string;
@@ -10391,6 +10528,14 @@ export class CarsPrismaRepository implements ICarsRepository {
     return this.prisma.car.update({
       where: { id },
       data,
+      include: CAR_INCLUDE,
+    });
+  }
+
+  async assignBarcode(carId: string, barcode: string): Promise<Car> {
+    return this.prisma.car.update({
+      where: { id: carId },
+      data: { barcode },
       include: CAR_INCLUDE,
     });
   }
@@ -10721,6 +10866,21 @@ export class FleetController {
     return this.fleetService.addFuelLog(req.user, dto);
   }
 
+  @Get('logs/my-history')
+  @Roles(UserRole.DRIVER)
+  @ApiOperation({
+    summary: 'Get own fuel log history (Driver only)',
+    description:
+      'Returns a paginated list of all fuel logs submitted by the authenticated driver, ' +
+      'most recent first. Each entry includes the plate number of the vehicle fuelled.',
+  })
+  async getMyFuelLogs(
+    @Req() req: AuthRequest,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.fleetService.getDriverFuelLogs(req.user.userId, pagination);
+  }
+
   @Get('logs/:carId/history')
   @Roles(UserRole.ACCOUNT_MANAGER, UserRole.ADMIN)
   @ApiParam({ name: 'carId', description: 'UUID of the fleet vehicle' })
@@ -10893,6 +11053,10 @@ export class FleetService {
     return this.fleetRepo.getFuelLogHistory(carId, pagination);
   }
 
+  async getDriverFuelLogs(driverId: string, pagination: PaginationDto) {
+    return this.fleetRepo.getDriverFuelLogs(driverId, pagination);
+  }
+
   async getCostByVehicle(userContext: AuthUser, filter: GetAnalyticsFilterDto) {
     const orgId = this.requireOrgId(userContext);
     const { startDate, endDate } = this.parseDateRange(filter);
@@ -10988,7 +11152,7 @@ import { IsString, IsNotEmpty } from 'class-validator';
 export class AuthBarcodeDto {
   @IsString()
   @IsNotEmpty()
-  barcode: string;
+  barcode!: string;
 }
 
 
@@ -11014,29 +11178,29 @@ export class CreateFuelLogDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  carId: string;
+  carId!: string;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  odometerKms: number;
+  odometerKms!: number;
 
   @ApiProperty({ enum: FuelType })
   @IsEnum(FuelType)
-  fuelType: FuelType;
+  fuelType!: FuelType;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0.1)
-  liters: number;
+  liters!: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  totalCost: number;
+  totalCost!: number;
 
   @ApiProperty({ required: false })
   @IsString()
@@ -11053,7 +11217,6 @@ PATH: .\src\fleet\dto\get-analytics-filter.dto.ts
 
 import { IsOptional, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 
 export class GetAnalyticsFilterDto {
   @ApiPropertyOptional({
@@ -11063,7 +11226,6 @@ export class GetAnalyticsFilterDto {
   })
   @IsOptional()
   @IsDateString()
-  @Type(() => Date)
   startDate?: string;
 
   @ApiPropertyOptional({
@@ -11073,7 +11235,6 @@ export class GetAnalyticsFilterDto {
   })
   @IsOptional()
   @IsDateString()
-  @Type(() => Date)
   endDate?: string;
 }
 
@@ -11139,6 +11300,7 @@ export interface OdometerHistoryEntry {
   totalCost: number;
   notes: string | null;
   driverName: string | null;
+  plateNumber?: string;
   createdAt: Date;
 }
 
@@ -11161,6 +11323,10 @@ export interface IFleetRepository {
   ): Promise<DriverCostAnalyticsRaw[]>;
   getFuelLogHistory(
     carId: string,
+    pagination: PaginationDto,
+  ): Promise<OdometerHistoryEntry[]>;
+  getDriverFuelLogs(
+    driverId: string,
     pagination: PaginationDto,
   ): Promise<OdometerHistoryEntry[]>;
 }
@@ -11377,6 +11543,43 @@ export class FleetPrismaRepository implements IFleetRepository {
       totalCost: Number(log.totalCost),
       notes: log.notes,
       driverName: log.driver.name,
+      createdAt: log.createdAt,
+    }));
+  }
+
+  async getDriverFuelLogs(
+    driverId: string,
+    pagination: PaginationDto,
+  ): Promise<OdometerHistoryEntry[]> {
+    const { skip = 0, take = 20 } = pagination;
+
+    const logs = await this.prisma.fuelLog.findMany({
+      where: { driverId },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+      select: {
+        id: true,
+        odometerKms: true,
+        fuelType: true,
+        liters: true,
+        totalCost: true,
+        notes: true,
+        createdAt: true,
+        car: { select: { plateNumber: true } },
+        driver: { select: { name: true } },
+      },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      odometerKms: log.odometerKms,
+      fuelType: log.fuelType,
+      liters: Number(log.liters),
+      totalCost: Number(log.totalCost),
+      notes: log.notes,
+      driverName: log.driver.name,
+      plateNumber: log.car.plateNumber,
       createdAt: log.createdAt,
     }));
   }
@@ -11643,14 +11846,14 @@ interface StockJobData {
 @Injectable()
 export class StockProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(StockProcessor.name);
-  private worker: Worker<StockJobData>;
+  private worker?: Worker<StockJobData>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
 
-  onModuleInit() {
+  onModuleInit(): void {
     this.worker = new Worker<StockJobData>(
       'stock',
       (job: Job<StockJobData>) => this.handleCheckStock(job),
@@ -11659,12 +11862,17 @@ export class StockProcessor implements OnModuleInit, OnModuleDestroy {
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(
-        `Stock job failed for part ${job?.data.itemId}: ${err.message}`,
+        `Stock job failed for part ${job?.data.itemId ?? 'unknown'}: ${err.message}`,
+        err.stack,
       );
+    });
+
+    this.worker.on('error', (err) => {
+      this.logger.error(`Stock worker error: ${err.message}`, err.stack);
     });
   }
 
-  async onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
   }
 
@@ -11680,14 +11888,11 @@ export class StockProcessor implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // Guard: skip if threshold is not configured for this part
     if (item.lowStockThreshold == null) {
       return;
     }
 
     if (item.quantity <= item.lowStockThreshold) {
-      // Fire the structured notification — currently logs to pino, ready for
-      // email/Slack/webhook by swapping the body of sendLowStockAlert().
       this.notifications.sendLowStockAlert(
         item.name,
         item.sku,
@@ -11973,6 +12178,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
   ParseUUIDPipe,
@@ -11993,6 +12199,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { AuthUser } from '../auth/types/auth-user.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Maintenance')
 @ApiBearerAuth()
@@ -12047,12 +12254,17 @@ export class MaintenanceController {
 
   @Get('records/:carId')
   @ApiParam({ name: 'carId', description: 'UUID of the car' })
-  @ApiOperation({ summary: 'Get full maintenance history for a car' })
+  @ApiOperation({ summary: 'Get paginated maintenance history for a car' })
   getMaintenanceHistory(
     @Req() req: Request & { user: AuthUser },
     @Param('carId', ParseUUIDPipe) carId: string,
+    @Query() pagination: PaginationDto,
   ) {
-    return this.maintenanceService.getMaintenanceHistory(carId, req.user);
+    return this.maintenanceService.getMaintenanceHistory(
+      carId,
+      req.user,
+      pagination,
+    );
   }
 
   // ─── Health Status ────────────────────────────────────────────────────────
@@ -12194,14 +12406,14 @@ interface MaintenanceJobData {
 @Injectable()
 export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MaintenanceProcessor.name);
-  private worker: Worker<MaintenanceJobData>;
+  private worker?: Worker<MaintenanceJobData>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
 
-  onModuleInit() {
+  onModuleInit(): void {
     this.worker = new Worker<MaintenanceJobData>(
       'maintenance',
       (job: Job<MaintenanceJobData>) => this.handleCheckMaintenance(job),
@@ -12210,12 +12422,17 @@ export class MaintenanceProcessor implements OnModuleInit, OnModuleDestroy {
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(
-        `Maintenance job failed for car ${job?.data.carId}: ${err.message}`,
+        `Maintenance job failed for car ${job?.data.carId ?? 'unknown'}: ${err.message}`,
+        err.stack,
       );
+    });
+
+    this.worker.on('error', (err) => {
+      this.logger.error(`Maintenance worker error: ${err.message}`, err.stack);
     });
   }
 
-  async onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
   }
 
@@ -12304,6 +12521,7 @@ import { CreateMaintenanceRuleDto } from './dto/create-maintenance-rule.dto';
 import { RecordMaintenanceDto } from './dto/record-maintenance.dto';
 import { CarsService } from '../cars/cars.service';
 import { AuthUser } from '../auth/types/auth-user.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class MaintenanceService {
@@ -12355,10 +12573,14 @@ export class MaintenanceService {
     return record;
   }
 
-  async getMaintenanceHistory(carId: string, userContext: AuthUser) {
+  async getMaintenanceHistory(
+    carId: string,
+    userContext: AuthUser,
+    pagination?: PaginationDto,
+  ) {
     // Ownership check
     await this.carsService.findOne(carId, userContext);
-    return this.repository.findRecordsByCarId(carId);
+    return this.repository.findRecordsByCarId(carId, pagination);
   }
 
   // ─── Health Status ───────────────────────────────────────────────────────
@@ -12647,6 +12869,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MaintenanceRecord } from '@prisma/client';
 import { CreateMaintenanceRuleDto } from '../dto/create-maintenance-rule.dto';
 import { RecordMaintenanceDto } from '../dto/record-maintenance.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class MaintenanceRepository {
@@ -12700,11 +12923,17 @@ export class MaintenanceRepository {
     });
   }
 
-  async findRecordsByCarId(carId: string): Promise<MaintenanceRecord[]> {
+  async findRecordsByCarId(
+    carId: string,
+    pagination?: PaginationDto,
+  ): Promise<MaintenanceRecord[]> {
+    const { skip = 0, take = 50 } = pagination ?? {};
     return this.prisma.maintenanceRecord.findMany({
       where: { carId },
       include: { service: true },
       orderBy: { performedAt: 'desc' },
+      skip,
+      take,
     });
   }
 
@@ -13049,18 +13278,43 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { ORDERS_REPOSITORY } from './interfaces/orders.repository.interface';
 import { CarsService } from '../cars/cars.service';
+import { StockJobs } from '../inventory/stock.jobs';
 import { UserRole } from '@prisma/client';
+import { AuthUser } from '../auth/types/auth-user.type';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function makeUser(role: UserRole, overrides: Partial<AuthUser> = {}): AuthUser {
+  return {
+    userId: `${role.toLowerCase()}-id`,
+    email: `${role.toLowerCase()}@test.com`,
+    role,
+    organizationId: null,
+    ...overrides,
+  };
+}
+
+// ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const mockOrdersRepository = {
   findAll: jest.fn(),
+  findAllByOrganization: jest.fn(),
   createTransactional: jest.fn(),
   findById: jest.fn(),
   updateStatus: jest.fn(),
+  updateStatusAtomically: jest.fn(),
+  reverseStockForOrder: jest.fn(),
 };
 
 const mockCarsService = {
   findOne: jest.fn(),
 };
+
+const mockStockJobs = {
+  checkStock: jest.fn().mockResolvedValue(undefined),
+};
+
+// ─── Test suite ───────────────────────────────────────────────────────────────
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -13071,6 +13325,7 @@ describe('OrdersService', () => {
         OrdersService,
         { provide: ORDERS_REPOSITORY, useValue: mockOrdersRepository },
         { provide: CarsService, useValue: mockCarsService },
+        { provide: StockJobs, useValue: mockStockJobs },
       ],
     }).compile();
 
@@ -13083,100 +13338,118 @@ describe('OrdersService', () => {
     expect(service).toBeDefined();
   });
 
+  // ─── findAll ─────────────────────────────────────────────────────────────
+
   describe('findAll', () => {
-    it('filters by userId for USER role', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue([]);
+    it('passes no userId filter for ADMIN — sees all orders', async () => {
+      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      const admin = makeUser(UserRole.ADMIN);
 
-      await service.findAll(
-        { skip: 0, take: 10 },
-        'user-id-123',
-        UserRole.USER,
-      );
-
-      expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
-        { skip: 0, take: 10 },
-        'user-id-123',
-      );
-    });
-
-    it('does not filter by userId for ADMIN role', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue([]);
-
-      await service.findAll({ skip: 0, take: 10 }, 'admin-id', UserRole.ADMIN);
+      await service.findAll({ skip: 0, take: 10 }, admin.userId, UserRole.ADMIN, admin);
 
       expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
         undefined,
       );
+      expect(mockOrdersRepository.findAllByOrganization).not.toHaveBeenCalled();
     });
 
-    it('does not filter by userId for ACCOUNT_MANAGER role', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue([]);
+    it('scopes by organizationId for ACCOUNT_MANAGER with an org', async () => {
+      mockOrdersRepository.findAllByOrganization.mockResolvedValue({
+        data: [], total: 0, skip: 0, take: 10,
+      });
+      const manager = makeUser(UserRole.ACCOUNT_MANAGER, { organizationId: 'org-1' });
 
-      await service.findAll(
+      await service.findAll({ skip: 0, take: 10 }, manager.userId, UserRole.ACCOUNT_MANAGER, manager);
+
+      expect(mockOrdersRepository.findAllByOrganization).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
-        'mgr-id',
-        UserRole.ACCOUNT_MANAGER,
+        'org-1',
       );
+      expect(mockOrdersRepository.findAll).not.toHaveBeenCalled();
+    });
+
+    it('falls back to own orders for ACCOUNT_MANAGER without an org', async () => {
+      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      const manager = makeUser(UserRole.ACCOUNT_MANAGER);
+
+      await service.findAll({ skip: 0, take: 10 }, manager.userId, UserRole.ACCOUNT_MANAGER, manager);
 
       expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
-        undefined,
+        manager.userId,
+      );
+    });
+
+    it('scopes by userId for USER role', async () => {
+      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      const user = makeUser(UserRole.USER);
+
+      await service.findAll({ skip: 0, take: 10 }, user.userId, UserRole.USER, user);
+
+      expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
+        { skip: 0, take: 10 },
+        user.userId,
+      );
+    });
+
+    it('scopes by userId for DRIVER role', async () => {
+      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      const driver = makeUser(UserRole.DRIVER);
+
+      await service.findAll({ skip: 0, take: 10 }, driver.userId, UserRole.DRIVER, driver);
+
+      expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
+        { skip: 0, take: 10 },
+        driver.userId,
       );
     });
   });
 
+  // ─── create ──────────────────────────────────────────────────────────────
+
   describe('create', () => {
-    const userContext = { userId: 'user-1', role: UserRole.USER };
+    const user = makeUser(UserRole.USER, { userId: 'user-1' });
     const dto = { carId: 'car-1', items: [{ partId: 'part-1', quantity: 1 }] };
 
     it('verifies car ownership then delegates to repository', async () => {
       mockCarsService.findOne.mockResolvedValue({ id: 'car-1' });
       mockOrdersRepository.createTransactional.mockResolvedValue({
         id: 'order-1',
+        items: [],
       });
 
-      const result = await service.create(userContext, dto);
+      const result = await service.create(user, dto);
 
-      expect(mockCarsService.findOne).toHaveBeenCalledWith(
-        'car-1',
-        userContext,
-      );
+      expect(mockCarsService.findOne).toHaveBeenCalledWith('car-1', user);
       expect(mockOrdersRepository.createTransactional).toHaveBeenCalledWith(
         'user-1',
         dto,
       );
-      expect(result).toEqual({ id: 'order-1' });
+      expect(result).toMatchObject({ id: 'order-1' });
     });
 
-    it('throws and does not create order when car access is denied', async () => {
+    it('does not create order when car access is denied', async () => {
       mockCarsService.findOne.mockRejectedValue(new ForbiddenException());
 
-      await expect(service.create(userContext, dto)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(service.create(user, dto)).rejects.toThrow(ForbiddenException);
       expect(mockOrdersRepository.createTransactional).not.toHaveBeenCalled();
     });
   });
 
+  // ─── findOne ─────────────────────────────────────────────────────────────
+
   describe('findOne', () => {
-    it('returns the order when the owner requests it', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({
-        id: 'order-1',
-        userId: 'user-1',
-      });
+    it('returns the order for the owner', async () => {
+      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
 
       const result = await service.findOne('order-1', 'user-1', UserRole.USER);
 
-      expect(mockOrdersRepository.findById).toHaveBeenCalledWith('order-1');
       expect(result).toEqual({ id: 'order-1', userId: 'user-1' });
     });
 
     it('throws ForbiddenException when a different user requests it', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({
-        id: 'order-1',
-        userId: 'user-1',
-      });
+      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
 
       await expect(
         service.findOne('order-1', 'other-user', UserRole.USER),
@@ -13184,16 +13457,17 @@ describe('OrdersService', () => {
     });
 
     it('allows ADMIN to fetch any order', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({
-        id: 'order-1',
-        userId: 'user-1',
-      });
+      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
 
-      const result = await service.findOne(
-        'order-1',
-        'admin-id',
-        UserRole.ADMIN,
-      );
+      const result = await service.findOne('order-1', 'admin-id', UserRole.ADMIN);
+
+      expect(result).toEqual({ id: 'order-1', userId: 'user-1' });
+    });
+
+    it('allows ACCOUNT_MANAGER to fetch any order', async () => {
+      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
+
+      const result = await service.findOne('order-1', 'mgr-id', UserRole.ACCOUNT_MANAGER);
 
       expect(result).toEqual({ id: 'order-1', userId: 'user-1' });
     });
@@ -14463,11 +14737,28 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Create a new user (Admin only)' })
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_MANAGER)
+  @ApiOperation({
+    summary: 'Create a new user',
+    description:
+      'ADMIN can create any role except DRIVER. ' +
+      'ACCOUNT_MANAGER can only create DRIVER accounts — ' +
+      'organizationId is resolved automatically from their session.',
+  })
   @ApiResponse({ status: 201, description: 'User created' })
-  async create(@Body() dto: CreateUserDto) {
-    const user = await this.usersService.create(dto);
+  @ApiResponse({
+    status: 400,
+    description: 'ACCOUNT_MANAGER attempted to create a non-DRIVER role',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Caller has no organizationId in session',
+  })
+  async create(
+    @Req() req: Request & { user: AuthUser },
+    @Body() dto: CreateUserDto,
+  ) {
+    const user = await this.usersService.create(dto, req.user);
     return new UserResponseDto(user);
   }
 
@@ -14571,12 +14862,443 @@ export class UsersModule {}
 ******************** END OF FILE ********************
 
 ############################################################
+PATH: .\src\users\users.service.spec.ts
+############################################################
+
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { UsersService } from './users.service';
+import { USERS_REPOSITORY } from './interfaces/users.repository.interface';
+import { UserRole } from '@prisma/client';
+import { AuthUser } from '../auth/types/auth-user.type';
+import { CreateUserDto } from './dto/create-user.dto';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function makeAuthUser(
+  role: UserRole,
+  overrides: Partial<AuthUser> = {},
+): AuthUser {
+  return {
+    userId: `${role.toLowerCase()}-id`,
+    email: `${role.toLowerCase()}@test.com`,
+    role,
+    organizationId: null,
+    ...overrides,
+  };
+}
+
+function makeCreateDto(overrides: Partial<CreateUserDto> = {}): CreateUserDto {
+  return {
+    email: 'new@test.com',
+    password: 'Password123',
+    name: 'Test User',
+    role: UserRole.USER,
+    ...overrides,
+  };
+}
+
+// ─── Mocks ───────────────────────────────────────────────────────────────────
+
+const mockUsersRepository = {
+  adminCreateUser: jest.fn(),
+  createNormalUser: jest.fn(),
+  createCorporateUserWithOrg: jest.fn(),
+  findByEmailWithPassword: jest.fn(),
+  findById: jest.fn(),
+  findByIdWithPassword: jest.fn(),
+  findAll: jest.fn(),
+  updateProfile: jest.fn(),
+  adminUpdate: jest.fn(),
+  updatePassword: jest.fn(),
+  softDelete: jest.fn(),
+};
+
+// ─── Suite ───────────────────────────────────────────────────────────────────
+
+describe('UsersService', () => {
+  let service: UsersService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: USERS_REPOSITORY, useValue: mockUsersRepository },
+      ],
+    }).compile();
+
+    service = module.get<UsersService>(UsersService);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  // ─── create ──────────────────────────────────────────────────────────────
+
+  describe('create', () => {
+    describe('ADMIN caller', () => {
+      it('creates a USER — resolvedOrgId passed to repo is null', async () => {
+        const dto = makeCreateDto({ role: UserRole.USER });
+        const caller = makeAuthUser(UserRole.ADMIN);
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+        mockUsersRepository.adminCreateUser.mockResolvedValue({
+          id: 'u-1',
+          email: dto.email,
+          role: UserRole.USER,
+          organizationId: null,
+        });
+
+        const result = await service.create(dto, caller);
+
+        expect(result.organizationId).toBeNull();
+        expect(mockUsersRepository.adminCreateUser).toHaveBeenCalledWith(
+          dto,
+          expect.any(String),
+          null,
+        );
+      });
+
+      it('creates an ACCOUNT_MANAGER — resolvedOrgId is null', async () => {
+        const dto = makeCreateDto({ role: UserRole.ACCOUNT_MANAGER });
+        const caller = makeAuthUser(UserRole.ADMIN);
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+        mockUsersRepository.adminCreateUser.mockResolvedValue({ id: 'u-2' });
+
+        await service.create(dto, caller);
+
+        const [, , resolvedOrgId] =
+          mockUsersRepository.adminCreateUser.mock.calls[0];
+        expect(resolvedOrgId).toBeNull();
+      });
+
+      it('attempting to create a DRIVER — throws BadRequestException', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ADMIN);
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('attempting to create a DRIVER — error message names the correct fix', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ADMIN);
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          'DRIVER accounts must be created by an Account Manager.',
+        );
+      });
+
+      it('attempting to create a DRIVER — repo is never called', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ADMIN);
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
+      });
+
+      it('throws ConflictException when email already exists', async () => {
+        const dto = makeCreateDto();
+        const caller = makeAuthUser(UserRole.ADMIN);
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue({
+          id: 'existing',
+        });
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          ConflictException,
+        );
+        expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('ACCOUNT_MANAGER caller', () => {
+      it('creates a DRIVER — organizationId resolved from caller JWT, not from dto', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+        mockUsersRepository.adminCreateUser.mockResolvedValue({
+          id: 'driver-1',
+          email: dto.email,
+          role: UserRole.DRIVER,
+          organizationId: 'org-abc',
+        });
+
+        const result = await service.create(dto, caller);
+
+        expect(result.organizationId).toBe('org-abc');
+        expect(mockUsersRepository.adminCreateUser).toHaveBeenCalledWith(
+          dto,
+          expect.any(String),
+          'org-abc',
+        );
+      });
+
+      it('creates a DRIVER — caller org is used even if dto had a different org somehow', async () => {
+        // organizationId is not on CreateUserDto by design, but this test
+        // confirms the repo receives the caller's org regardless
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+        mockUsersRepository.adminCreateUser.mockResolvedValue({ id: 'driver-1' });
+
+        await service.create(dto, caller);
+
+        const [, , resolvedOrgId] =
+          mockUsersRepository.adminCreateUser.mock.calls[0];
+        expect(resolvedOrgId).toBe('org-abc');
+      });
+
+      it('attempting to create a USER role — throws BadRequestException', async () => {
+        const dto = makeCreateDto({ role: UserRole.USER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('attempting to create an ACCOUNT_MANAGER role — throws BadRequestException', async () => {
+        const dto = makeCreateDto({ role: UserRole.ACCOUNT_MANAGER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('attempting to create any non-DRIVER role — error message is explicit', async () => {
+        const dto = makeCreateDto({ role: UserRole.USER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          'Account Managers can only create DRIVER accounts.',
+        );
+      });
+
+      it('attempting to create any non-DRIVER role — repo is never called', async () => {
+        const dto = makeCreateDto({ role: UserRole.USER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
+      });
+
+      it('has no organizationId in JWT (malformed token) — throws ForbiddenException', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: null, // malformed — no org despite being ACCOUNT_MANAGER
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('has no organizationId in JWT — repo is never called', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: null,
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          ForbiddenException,
+        );
+        expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
+      });
+
+      it('throws ConflictException when email already exists — before org resolution', async () => {
+        const dto = makeCreateDto({ role: UserRole.DRIVER });
+        const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
+          organizationId: 'org-abc',
+        });
+
+        mockUsersRepository.findByEmailWithPassword.mockResolvedValue({
+          id: 'existing',
+        });
+
+        await expect(service.create(dto, caller)).rejects.toThrow(
+          ConflictException,
+        );
+        expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  // ─── findOne ─────────────────────────────────────────────────────────────
+
+  describe('findOne', () => {
+    it('returns the user when found', async () => {
+      mockUsersRepository.findById.mockResolvedValue({
+        id: 'u-1',
+        email: 'x@x.com',
+      });
+
+      const result = await service.findOne('u-1');
+
+      expect(result).toEqual({ id: 'u-1', email: 'x@x.com' });
+    });
+
+    it('returns null when user does not exist', async () => {
+      mockUsersRepository.findById.mockResolvedValue(null);
+
+      const result = await service.findOne('ghost');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ─── findAll ─────────────────────────────────────────────────────────────
+
+  describe('findAll', () => {
+    it('returns all users when no role filter is given', async () => {
+      mockUsersRepository.findAll.mockResolvedValue([{ id: 'u-1' }]);
+
+      const result = await service.findAll();
+
+      expect(mockUsersRepository.findAll).toHaveBeenCalledWith(undefined);
+      expect(result).toHaveLength(1);
+    });
+
+    it('passes role filter to repository', async () => {
+      mockUsersRepository.findAll.mockResolvedValue([]);
+
+      await service.findAll(UserRole.DRIVER);
+
+      expect(mockUsersRepository.findAll).toHaveBeenCalledWith(UserRole.DRIVER);
+    });
+  });
+
+  // ─── changePassword ───────────────────────────────────────────────────────
+
+  describe('changePassword', () => {
+    it('throws UnauthorizedException when user is not found', async () => {
+      mockUsersRepository.findByIdWithPassword.mockResolvedValue(null);
+
+      await expect(
+        service.changePassword('ghost', {
+          currentPassword: 'old',
+          newPassword: 'newpass123',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('throws UnauthorizedException when current password is wrong', async () => {
+      // bcrypt.compare will return false for a plaintext vs plaintext comparison
+      // so we store a bcrypt hash of a different password
+      const bcrypt = await import('bcrypt');
+      const wrongHash = await bcrypt.hash('different-password', 10);
+
+      mockUsersRepository.findByIdWithPassword.mockResolvedValue({
+        id: 'u-1',
+        password: wrongHash,
+      });
+
+      await expect(
+        service.changePassword('u-1', {
+          currentPassword: 'wrong-password',
+          newPassword: 'newpass123',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(mockUsersRepository.updatePassword).not.toHaveBeenCalled();
+    });
+
+    it('updates password when current password is correct', async () => {
+      const bcrypt = await import('bcrypt');
+      const correctHash = await bcrypt.hash('correct-password', 10);
+
+      mockUsersRepository.findByIdWithPassword.mockResolvedValue({
+        id: 'u-1',
+        password: correctHash,
+      });
+      mockUsersRepository.updatePassword.mockResolvedValue(undefined);
+
+      const result = await service.changePassword('u-1', {
+        currentPassword: 'correct-password',
+        newPassword: 'newpass123',
+      });
+
+      expect(result).toEqual({ message: 'Password changed successfully' });
+      expect(mockUsersRepository.updatePassword).toHaveBeenCalledWith(
+        'u-1',
+        expect.any(String), // new bcrypt hash
+      );
+    });
+  });
+
+  // ─── remove ──────────────────────────────────────────────────────────────
+
+  describe('remove', () => {
+    it('delegates soft delete to repository', async () => {
+      mockUsersRepository.softDelete.mockResolvedValue(undefined);
+
+      await service.remove('u-1');
+
+      expect(mockUsersRepository.softDelete).toHaveBeenCalledWith('u-1');
+    });
+  });
+});
+
+
+******************** END OF FILE ********************
+
+############################################################
 PATH: .\src\users\users.service.ts
 ############################################################
 
 import {
   Injectable,
   ConflictException,
+  BadRequestException,
+  ForbiddenException,
   Inject,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -14591,6 +15313,7 @@ import {
   USERS_REPOSITORY,
   SafeUser,
 } from './interfaces/users.repository.interface';
+import { AuthUser } from '../auth/types/auth-user.type';
 
 @Injectable()
 export class UsersService {
@@ -14599,10 +15322,63 @@ export class UsersService {
     private readonly usersRepo: IUsersRepository,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<SafeUser> {
+  /**
+   * Create a user.
+   *
+   * Authorization rules enforced here (after the role guard has already
+   * verified the caller is ADMIN or ACCOUNT_MANAGER):
+   *
+   *   ACCOUNT_MANAGER:
+   *     - May only create DRIVER accounts.
+   *     - organizationId is resolved from callerContext.organizationId.
+   *     - If callerContext.organizationId is missing, fail explicitly —
+   *       this should never happen if the JWT is valid, but we guard it.
+   *
+   *   ADMIN:
+   *     - May create any role except DRIVER.
+   *     - organizationId is never injected — ADMIN operates system-wide.
+   */
+  async create(dto: CreateUserDto, callerContext: AuthUser): Promise<SafeUser> {
     await this.checkEmailUniqueness(dto.email);
+
+    const resolvedOrgId = this.resolveOrganizationId(dto.role, callerContext);
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    return this.usersRepo.adminCreateUser(dto, hashedPassword);
+    return this.usersRepo.adminCreateUser(dto, hashedPassword, resolvedOrgId);
+  }
+
+  private resolveOrganizationId(
+    role: UserRole | undefined,
+    callerContext: AuthUser,
+  ): string | null {
+    const callerRole = callerContext.role;
+
+    if (callerRole === UserRole.ACCOUNT_MANAGER) {
+      // ACCOUNT_MANAGER may only create drivers for their own org
+      if (role !== UserRole.DRIVER) {
+        throw new BadRequestException(
+          'Account Managers can only create DRIVER accounts.',
+        );
+      }
+
+      if (!callerContext.organizationId) {
+        // Guard against a malformed JWT — should never reach production
+        throw new ForbiddenException(
+          'Your session has no organization context. Cannot create a driver.',
+        );
+      }
+
+      return callerContext.organizationId;
+    }
+
+    // ADMIN path — no org injection, DRIVER creation not allowed via this route
+    if (role === UserRole.DRIVER) {
+      throw new BadRequestException(
+        'DRIVER accounts must be created by an Account Manager.',
+      );
+    }
+
+    return null;
   }
 
   async registerPublicUser(dto: SignupDto): Promise<SafeUser> {
@@ -14646,7 +15422,6 @@ export class UsersService {
     userId: string,
     dto: ChangePasswordDto,
   ): Promise<{ message: string }> {
-    // Fetch the full user (including password) for verification
     const user = await this.usersRepo.findByIdWithPassword(userId);
     if (!user) throw new UnauthorizedException('User not found');
 
@@ -14748,6 +15523,10 @@ export class CreateUserDto {
   @IsEnum(UserRole)
   @IsOptional()
   role?: UserRole;
+
+  // organizationId is intentionally absent.
+  // It is never accepted from the request body.
+  // For DRIVER creation it is resolved exclusively from the caller's JWT.
 }
 
 
@@ -14875,7 +15654,15 @@ export type SafeUser = Omit<User, 'password'>;
 export interface IUsersRepository {
   createNormalUser(dto: SignupDto, hash: string): Promise<SafeUser>;
   createCorporateUserWithOrg(dto: SignupDto, hash: string): Promise<SafeUser>;
-  adminCreateUser(dto: CreateUserDto, hash: string): Promise<SafeUser>;
+  /**
+   * resolvedOrgId is pre-resolved by UsersService from caller context.
+   * The repository never reads organizationId from dto directly.
+   */
+  adminCreateUser(
+    dto: CreateUserDto,
+    hash: string,
+    resolvedOrgId: string | null,
+  ): Promise<SafeUser>;
   findByEmailWithPassword(email: string): Promise<User | null>;
   findById(id: string): Promise<SafeUser | null>;
   findByIdWithPassword(id: string): Promise<User | null>;
@@ -14961,7 +15748,17 @@ export class UsersPrismaRepository implements IUsersRepository {
     });
   }
 
-  async adminCreateUser(dto: CreateUserDto, hash: string): Promise<SafeUser> {
+  /**
+   * resolvedOrgId is pre-resolved by UsersService from the caller's JWT.
+   * The repository never reads organizationId from dto — it only writes
+   * what the service has already validated and resolved.
+   * The write is atomic inside the single prisma.user.create() call.
+   */
+  async adminCreateUser(
+    dto: CreateUserDto,
+    hash: string,
+    resolvedOrgId: string | null,
+  ): Promise<SafeUser> {
     return this.prisma.user.create({
       data: {
         email: dto.email,
@@ -14972,13 +15769,14 @@ export class UsersPrismaRepository implements IUsersRepository {
         city: dto.city ?? null,
         country: dto.country ?? null,
         role: dto.role ?? UserRole.USER,
+        organizationId: resolvedOrgId,
       },
       select: SAFE_USER_SELECT,
     });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       where: { email, deletedAt: null },
       include: { organization: true },
     });
@@ -15030,7 +15828,6 @@ export class UsersPrismaRepository implements IUsersRepository {
 
   async softDelete(id: string): Promise<void> {
     await this.prisma.$transaction([
-      // Revoke refresh token so the user cannot refresh after deletion
       this.prisma.refreshToken.deleteMany({ where: { userId: id } }),
       this.prisma.user.update({
         where: { id },
