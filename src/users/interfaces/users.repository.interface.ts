@@ -12,7 +12,15 @@ export type SafeUser = Omit<User, 'password'>;
 export interface IUsersRepository {
   createNormalUser(dto: SignupDto, hash: string): Promise<SafeUser>;
   createCorporateUserWithOrg(dto: SignupDto, hash: string): Promise<SafeUser>;
-  adminCreateUser(dto: CreateUserDto, hash: string): Promise<SafeUser>;
+  /**
+   * resolvedOrgId is pre-resolved by UsersService from caller context.
+   * The repository never reads organizationId from dto directly.
+   */
+  adminCreateUser(
+    dto: CreateUserDto,
+    hash: string,
+    resolvedOrgId: string | null,
+  ): Promise<SafeUser>;
   findByEmailWithPassword(email: string): Promise<User | null>;
   findById(id: string): Promise<SafeUser | null>;
   findByIdWithPassword(id: string): Promise<User | null>;

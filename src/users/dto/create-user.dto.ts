@@ -49,4 +49,8 @@ export class CreateUserDto {
   @IsEnum(UserRole)
   @IsOptional()
   role?: UserRole;
+
+  // organizationId is intentionally absent.
+  // It is never accepted from the request body.
+  // For DRIVER creation it is resolved exclusively from the caller's JWT.
 }

@@ -66,7 +66,17 @@ export class UsersPrismaRepository implements IUsersRepository {
     });
   }
 
-  async adminCreateUser(dto: CreateUserDto, hash: string): Promise<SafeUser> {
+  /**
+   * resolvedOrgId is pre-resolved by UsersService from the caller's JWT.
+   * The repository never reads organizationId from dto — it only writes
+   * what the service has already validated and resolved.
+   * The write is atomic inside the single prisma.user.create() call.
+   */
+  async adminCreateUser(
+    dto: CreateUserDto,
+    hash: string,
+    resolvedOrgId: string | null,
+  ): Promise<SafeUser> {
     return this.prisma.user.create({
       data: {
         email: dto.email,
@@ -77,6 +87,7 @@ export class UsersPrismaRepository implements IUsersRepository {
         city: dto.city ?? null,
         country: dto.country ?? null,
         role: dto.role ?? UserRole.USER,
+        organizationId: resolvedOrgId,
       },
       select: SAFE_USER_SELECT,
     });
@@ -135,7 +146,6 @@ export class UsersPrismaRepository implements IUsersRepository {
 
   async softDelete(id: string): Promise<void> {
     await this.prisma.$transaction([
-      // Revoke refresh token so the user cannot refresh after deletion
       this.prisma.refreshToken.deleteMany({ where: { userId: id } }),
       this.prisma.user.update({
         where: { id },
