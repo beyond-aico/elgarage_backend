@@ -2,24 +2,28 @@ import { Global, Module } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
-// فصلنا إنشاء الاتصال عشان TypeScript ميزعلش
 const createRedisConnection = () => {
   const redisUrl = process.env.REDIS_URL;
 
-  // لو فيه URL كامل استخدمه (مع الدعم التلقائي للاتصال المشفر rediss://)
   if (redisUrl) {
+    // rediss:// scheme means TLS is required — certificate verification is
+    // always enforced. Never pass rejectUnauthorized: false in any environment;
+    // doing so silently strips the security guarantee of TLS entirely.
     return new IORedis(redisUrl, {
       maxRetriesPerRequest: null,
-      tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
     });
   }
 
-  // لو مفيش، استخدم الـ Object مع إضافة دعم الباسورد والسحابة
+  const tlsEnabled = process.env.REDIS_TLS === 'true';
+
   return new IORedis({
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD || undefined, // Added for Production Redis
-    tls: process.env.REDIS_TLS === 'true' ? { rejectUnauthorized: false } : undefined, // Added for Secure Cloud Redis
+    password: process.env.REDIS_PASSWORD || undefined,
+    // tls: {} with no overrides means Node.js enforces full certificate chain
+    // validation using the system CA store. Do NOT add rejectUnauthorized: false
+    // — it defeats TLS entirely and exposes credentials to MITM attacks.
+    tls: tlsEnabled ? {} : undefined,
     maxRetriesPerRequest: null,
   });
 };
@@ -40,8 +44,7 @@ export const redisConnection = createRedisConnection();
     },
     {
       provide: 'STOCK_QUEUE',
-      useFactory: () =>
-        new Queue('stock', { connection: redisConnection }),
+      useFactory: () => new Queue('stock', { connection: redisConnection }),
     },
   ],
   exports: ['MAINTENANCE_QUEUE', 'STOCK_QUEUE', 'REDIS_CONNECTION'],

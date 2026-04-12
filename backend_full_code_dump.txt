@@ -289,6 +289,7 @@ PATH: .\package.json
     "prisma:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -297,9 +298,9 @@ PATH: .\package.json
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.1.0",
     "@nestjs/swagger": "^11.2.3",
-    "@prisma/client": "^6.0.0",
-    "prisma": "^6.0.0",
+    "@nestjs/terminus": "^11.1.1",
     "@prisma/adapter-pg": "^6.0.0",
+    "@prisma/client": "^6.0.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.66.4",
     "class-transformer": "^0.5.1",
@@ -308,12 +309,14 @@ PATH: .\package.json
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "ioredis": "^5.8.2",
+    "joi": "^18.1.2",
     "nestjs-pino": "^4.5.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.16.3",
     "pino": "^10.1.0",
     "pino-http": "^11.0.0",
+    "prisma": "^6.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1"
@@ -337,8 +340,8 @@ PATH: .\package.json
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
     "jest": "^30.2.0",
-    "prettier": "^3.4.2",
     "pino-pretty": "^13.1.3",
+    "prettier": "^3.4.2",
     "rimraf": "^6.1.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
@@ -350,6 +353,7 @@ PATH: .\package.json
     "typescript-eslint": "^8.20.0"
   }
 }
+
 
 ******************** END OF FILE ********************
 
@@ -374,184 +378,214 @@ PATH: .\README.md
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-<p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-<p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-</p>
-
 ## Description
 
-**Car Service Backend API** - An enterprise-grade backend system for managing car maintenance, user bookings, and inventory.
+**Car Service Backend API** — An enterprise-grade backend system for managing car maintenance, user bookings, and inventory.
 
-This project utilizes a modern stack designed for scalability and reliability:
-* **Framework:** [NestJS](https://github.com/nestjs/nest) (Node.js)
+This project utilises a modern stack designed for scalability and reliability:
+
+* **Framework:** [NestJS](https://github.com/nestjs/nest) v11 (Node.js v20)
 * **Database:** PostgreSQL 15
-* **ORM:** Prisma (v7 with Driver Adapters)
-* **Caching/Queues:** Redis 7
-* **Containerization:** Docker & Docker Compose
+* **ORM:** Prisma v6 (with Driver Adapters via `@prisma/adapter-pg`)
+* **Caching:** In-process TTL cache via `@nestjs/cache-manager`
+* **Queues:** BullMQ backed by Redis 7
+* **Containerisation:** Docker & Docker Compose
 
-## 📋 Prerequisites
+---
 
-Ensure you have the following installed on your machine:
+## Prerequisites
+
+Ensure the following are installed and running:
+
 * **Git**
-* **Docker Desktop** (running)
+* **Docker Desktop**
+* **Node.js v20+** (for local development without Docker)
 * **PowerShell** (Windows) or **Terminal** (Linux/macOS)
 
-## 🚀 Getting Started (Docker)
+---
 
-We recommend running this application via Docker to ensure all dependencies (Postgres, Redis) are configured correctly.
+## Getting started (Docker)
 
-### 1. Configure Environment
-Create a file named `.env` in the root directory. Copy the contents from the **Configuration** section below.
+### 1. Configure environment
 
-### 2. Build and Start
-Run the following command to build the containers.
-*Note: The `--build` flag is critical to ensure the Prisma 7 adapter is installed correctly.*
+Create a `.env` file in the project root using `.env.example` as the template:
 
 ```bash
-$ docker compose -f docker/docker-compose.yml up --build -d
-
+cp .env.example .env
 ```
 
-*Wait ~30-60 seconds for the database and API to initialize.*
+Edit the values — at minimum set the JWT secrets to long random strings (32+ characters each).
 
-### 3. Initialize Database
-
-Apply the schema migrations to create the database tables:
+### 2. Build and start
 
 ```bash
-$ docker compose -f docker/docker-compose.yml exec api npx prisma migrate deploy
-
+docker compose -f docker/docker-compose.yml up --build -d
 ```
 
-*Expected Output: "No pending migrations to apply" (if up to date) or a list of applied migrations.*
+Wait 30–60 seconds for PostgreSQL and the API to initialise.
 
-## 🧪 Validating the Installation
+### 3. Apply database migrations
 
-You can verify the system is operational by registering a test user.
+```bash
+docker compose -f docker/docker-compose.yml exec api npx prisma migrate deploy
+```
+
+Expected output: `"No pending migrations to apply"` (if up to date) or a list of applied migrations.
+
+### 4. Seed reference data (optional)
+
+```bash
+docker compose -f docker/docker-compose.yml exec api npm run prisma:seed
+```
+
+---
+
+## Validating the installation
+
+### macOS / Linux
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "securePassword123", "name": "Admin"}'
+```
 
 ### Windows (PowerShell)
 
 ```powershell
 $body = @{
-    email = "admin@example.com"
+    email    = "admin@example.com"
     password = "securePassword123"
+    name     = "Admin"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Uri "http://localhost:3000/auth/register" `
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/register" `
   -Method Post `
   -ContentType "application/json" `
   -Body $body
-
 ```
 
-### macOS / Linux (Bash)
-
-```bash
-curl -X POST http://localhost:3000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@example.com", "password": "securePassword123"}'
-
-```
-
-**Expected Response:**
-You should receive a JSON response containing an `accessToken` and `refreshToken`.
+**Expected response:** a JSON object containing `accessToken` and `refreshToken`.
 
 ---
 
-## 🛠 Troubleshooting
+## Health checks
 
-**Issue: "PrismaClientConstructorValidationError"**
-If you encounter errors regarding the Prisma engine or client version:
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Liveness — process uptime only. Never fails due to dependencies. |
+| `GET /health/ready` | Readiness — probes PostgreSQL and Redis. Returns `503` if either is unreachable. |
 
-1. Stop the containers:
-```bash
-docker compose -f docker/docker-compose.yml down
+---
 
-```
+## API documentation
 
+Swagger UI is available at `/docs` in **non-production environments only**.
 
-2. Rebuild without cache to force a fresh dependency install:
-```bash
-docker compose -f docker/docker-compose.yml build --no-cache api
+Start the server locally and open: [http://localhost:3000/docs](http://localhost:3000/docs)
 
-```
+---
 
+## Local development (without Docker)
 
-3. Start again:
-```bash
-docker compose -f docker/docker-compose.yml up -d
-
-```
-
-
-
-**Issue: "Connection Refused"**
-Ensure that Docker Desktop is running and that port `3000` is not being used by another application.
-
-## Local Development (Without Docker)
-
-If you prefer to run Node.js locally (requires local Postgres/Redis instances):
+Requires a local PostgreSQL 15 instance and Redis 7.
 
 ```bash
-$ npm install
-
+npm install
 ```
 
 ```bash
 # development
-$ npm run start
+npm run start
 
 # watch mode
-$ npm run start:dev
+npm run start:dev
+
+# production build
+npm run build
 
 # production mode
-$ npm run start:prod
-
+npm run start:prod
 ```
 
-## Run tests
+---
+
+## Running tests
 
 ```bash
 # unit tests
-$ npm run test
+npm run test
+
+# watch mode
+npm run test:watch
+
+# coverage
+npm run test:cov
 
 # e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-
+npm run test:e2e
 ```
+
+---
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `NODE_ENV` | No | `development` / `test` / `production`. Default: `development` |
+| `PORT` | No | HTTP port. Default: `3000` |
+| `DATABASE_URL` | **Yes** | PostgreSQL connection string (`postgresql://...`) |
+| `JWT_ACCESS_SECRET` | **Yes** | Min 32 characters |
+| `JWT_REFRESH_SECRET` | **Yes** | Min 32 characters |
+| `JWT_ACCESS_EXPIRES_IN` | No | Default: `15m` |
+| `JWT_REFRESH_EXPIRES_IN` | No | Default: `7d` |
+| `REDIS_URL` | One of these two | Full Redis URL e.g. `redis://localhost:6379` |
+| `REDIS_HOST` | One of these two | Redis hostname e.g. `localhost` |
+| `REDIS_PORT` | No | Default: `6379` |
+| `REDIS_PASSWORD` | No | Redis password for authenticated instances |
+| `REDIS_TLS` | No | `true` to enable TLS. Default: `false` |
+| `CORS_ORIGIN` | No | Allowed origin(s), comma-separated |
+
+---
+
+## Available scripts
+
+| Script | Description |
+|---|---|
+| `npm run build` | Generates Prisma client and compiles TypeScript |
+| `npm run start:dev` | Starts in watch mode |
+| `npm run start:prod` | Runs migrations then starts the compiled app |
+| `npm run lint` | Runs ESLint with auto-fix |
+| `npm run test` | Runs unit tests |
+| `npm run test:cov` | Runs unit tests with coverage report |
+| `npm run test:e2e` | Runs end-to-end tests |
+| `npm run prisma:seed` | Seeds reference data (brands, models, services, users) |
+
+---
+
+## Troubleshooting
+
+**`PrismaClientConstructorValidationError`**
+
+```bash
+docker compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml build --no-cache api
+docker compose -f docker/docker-compose.yml up -d
+```
+
+**`Connection Refused`**
+
+Ensure Docker Desktop is running and port `3000` is not occupied by another process.
+
+**Config validation error at startup**
+
+The app validates all environment variables at boot. If a required variable is missing or malformed, the process exits immediately with a clear error listing every invalid field. Check your `.env` against the environment variables table above.
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-
-### File 2: `.env`
-
-# Database Connection (Docker Internal Network)
-# Format: postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
-DATABASE_URL="postgresql://postgres:postgres@postgres:5432/car_service?schema=public"
-
-# Redis Configuration
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# Security Secrets (Test/Development Environment)
-# WARNING: Generate new, secure secrets for production use
-JWT_ACCESS_SECRET="fea0bcd8bdb9cb463b1aa9ef3917efe32345e14274a210c523f5c23b8b9412dc27c09aaeefba7949e0c4a57104fddec6ceff20cb5bf108976be32fb3206a1500"
-JWT_REFRESH_SECRET="5e6950eb9aebc7e58ef6e25b83cea4d34eda05537c80c55412a8f1bd48b16b12b753d2914e8ba5797038b8f1be5d5f62310688ab431c4fdda13d610d698086cc"
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-
+UNLICENSED
 
 ******************** END OF FILE ********************
 
@@ -3178,8 +3212,15 @@ export class AppController {
 PATH: .\src\app.module.ts
 ############################################################
 
-import { Module, ModuleMetadata } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  ModuleMetadata,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { CacheModule } from '@nestjs/cache-manager';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -3194,17 +3235,45 @@ import { QueueModule } from './common/queues/queue.module';
 import { AdminModule } from './admin/admin.module';
 import { FleetModule } from './fleet/fleet.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { HealthModule } from './health/health.module';
+import { envValidationSchema } from './config/env.validation';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import type { IncomingMessage, ServerResponse } from 'http';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+// Extracts correlation IDs from res.locals with full type safety.
+// customProps receives the raw Node.js IncomingMessage and ServerResponse —
+// we cast ServerResponse to access locals which Express attaches at runtime.
+function extractCorrelationProps(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Record<string, string> {
+  const locals =
+    (res as ServerResponse & { locals?: Record<string, string> }).locals ?? {};
+
+  return {
+    correlationId: locals['x-correlation-id'] ?? '',
+    requestId: locals['x-request-id'] ?? '',
+  };
+}
+
 const moduleMetadata: ModuleMetadata = {
   imports: [
-    // ConfigModule first — other modules may read env vars at bootstrap
     ConfigModule.forRoot({
       isGlobal: true,
+      validationSchema: envValidationSchema,
+      validationOptions: {
+        abortEarly: false,
+      },
     }),
-    // NotificationsModule before any module whose providers use NotificationsService
+
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 5 * 60 * 1000,
+    }),
+
     NotificationsModule,
     PrismaModule,
     QueueModule,
@@ -3218,13 +3287,31 @@ const moduleMetadata: ModuleMetadata = {
     ScheduleModule.forRoot(),
     AdminModule,
     FleetModule,
+    HealthModule,
 
     LoggerModule.forRoot({
       pinoHttp:
         process.env.NODE_ENV === 'production'
-          ? { level: 'info' }
+          ? {
+              level: 'info',
+              // customProps is the correct pino-http option for attaching
+              // extra fields to every log line from the request context.
+              customProps: extractCorrelationProps,
+              redact: {
+                paths: [
+                  'req.headers.authorization',
+                  'req.headers.cookie',
+                  'req.body.password',
+                  'req.body.currentPassword',
+                  'req.body.newPassword',
+                  'req.body.refreshToken',
+                ],
+                censor: '[REDACTED]',
+              },
+            }
           : {
               level: 'debug',
+              customProps: extractCorrelationProps,
               transport: {
                 target: 'pino-pretty',
                 options: {
@@ -3241,7 +3328,13 @@ const moduleMetadata: ModuleMetadata = {
 };
 
 @Module(moduleMetadata)
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(CorrelationIdMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}
 
 
 ******************** END OF FILE ********************
@@ -3378,13 +3471,11 @@ async function bootstrap() {
 
   app.use(helmet());
 
-  // Auth rate limiter — applied before the router so it fires on every
-  // /auth/* request regardless of versioning prefix
   app.use(
     '/api/v1/auth',
     rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 20, // max 20 attempts per window per IP
+      windowMs: 15 * 60 * 1000,
+      max: 20,
       standardHeaders: true,
       legacyHeaders: false,
       message: {
@@ -3395,7 +3486,6 @@ async function bootstrap() {
     }),
   );
 
-  // CORS
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
   let allowedOrigins: string | string[] = 'http://localhost:3000';
 
@@ -3416,7 +3506,6 @@ async function bootstrap() {
     defaultVersion: '1',
   });
 
-  // Global Validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -3426,21 +3515,26 @@ async function bootstrap() {
     }),
   );
 
-  // Global Filter & Interceptor
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
   app.useGlobalInterceptors(new TransformInterceptor());
 
   app.useLogger(logger);
 
-  const config = new DocumentBuilder()
-    .setTitle('Car Service API')
-    .setDescription('Enterprise Backend for Car Service Management')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  // ── Swagger: non-production only ────────────────────────────────────────
+  // In production NODE_ENV the /docs route is never registered, so the
+  // API schema is not publicly explorable on the live server.
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Car Service API')
+      .setDescription('Enterprise Backend for Car Service Management')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
+    logger.log('Swagger UI available at /docs (non-production only)');
+  }
 
   app.enableShutdownHooks();
 
@@ -3449,6 +3543,7 @@ async function bootstrap() {
   console.log(`🚀 Server is listening on port: ${port}`);
   logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);
 }
+
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
 });
@@ -8597,41 +8692,80 @@ export class BrandsModule {}
 PATH: .\src\admin\brands\brands.service.ts
 ############################################################
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateModelDto } from './dto/create-model.dto';
+import { CACHE_TTL } from '../../config/cache.config';
+
+const CACHE_KEY = {
+  BRANDS: 'brands:all',
+  MODELS: (brandId: string) => `brands:models:${brandId}`,
+} as const;
 
 @Injectable()
 export class BrandsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
-  createBrand(dto: CreateBrandDto) {
-    return this.prisma.carBrand.create({
+  async createBrand(dto: CreateBrandDto) {
+    const brand = await this.prisma.carBrand.create({
       data: { name: dto.name },
     });
+
+    // Invalidate the brands list so the next read reflects the new entry.
+    await this.cache.del(CACHE_KEY.BRANDS);
+
+    return brand;
   }
 
-  createModel(dto: CreateModelDto) {
-    return this.prisma.carModel.create({
+  async createModel(dto: CreateModelDto) {
+    const model = await this.prisma.carModel.create({
       data: {
         name: dto.name,
         brandId: dto.brandId,
       },
     });
+
+    // Invalidate both the brand list (includes nested models) and the
+    // per-brand model list for this specific brand.
+    await Promise.all([
+      this.cache.del(CACHE_KEY.BRANDS),
+      this.cache.del(CACHE_KEY.MODELS(dto.brandId)),
+    ]);
+
+    return model;
   }
 
-  listBrands() {
-    return this.prisma.carBrand.findMany({
+  async listBrands() {
+    const cached = await this.cache.get(CACHE_KEY.BRANDS);
+    if (cached) return cached;
+
+    const brands = await this.prisma.carBrand.findMany({
       include: { models: true },
     });
+
+    await this.cache.set(CACHE_KEY.BRANDS, brands, CACHE_TTL.BRANDS);
+
+    return brands;
   }
-  listModels(brandId: string) {
-    return this.prisma.carModel.findMany({
-      where: {
-        brandId: brandId, // بيفلتر الموديلات حسب الماركة المختارة
-      },
+
+  async listModels(brandId: string) {
+    const key = CACHE_KEY.MODELS(brandId);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
+    const models = await this.prisma.carModel.findMany({
+      where: { brandId },
     });
+
+    await this.cache.set(key, models, CACHE_TTL.BRANDS);
+
+    return models;
   }
 }
 
@@ -10333,13 +10467,18 @@ export class CarResponseDto {
 PATH: .\src\cars\dto\create-car.dto.ts
 ############################################################
 
-import { IsInt, IsNotEmpty, IsString, Min, Max } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsUUID, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCarDto {
+  // Added @IsUUID('4') — modelId must be a valid UUID v4.
+  // Without this, any non-UUID string passes the validation pipe and only
+  // fails later inside Prisma with a confusing database-level error instead
+  // of a clean 400 Bad Request at the request boundary.
   @ApiProperty({ description: 'UUID of the car model' })
   @IsNotEmpty()
   @IsString()
+  @IsUUID('4', { message: 'modelId must be a valid UUID' })
   modelId!: string;
 
   @ApiProperty({ example: 2022 })
@@ -10739,6 +10878,57 @@ export class TransformInterceptor<T> implements NestInterceptor<
 ******************** END OF FILE ********************
 
 ############################################################
+PATH: .\src\common\middleware\correlation-id.middleware.ts
+############################################################
+
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
+
+export const CORRELATION_ID_HEADER = 'x-correlation-id';
+export const REQUEST_ID_HEADER = 'x-request-id';
+
+/**
+ * Attaches two IDs to every request:
+ *
+ * x-correlation-id — either forwarded from the caller (e.g. an upstream
+ *   service or API gateway) or generated fresh. This is the ID to use when
+ *   tracing a logical operation that spans multiple services.
+ *
+ * x-request-id — always generated fresh for this specific HTTP request.
+ *   Useful for correlating the exact request/response pair in logs even
+ *   when the caller does not send a correlation ID.
+ *
+ * Both IDs are:
+ *   - Attached to res.locals so downstream middleware can read them.
+ *   - Written back to the response headers so the caller can log them.
+ *   - Picked up automatically by the pino-http logger via reqCustomProps.
+ */
+@Injectable()
+export class CorrelationIdMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction): void {
+    const correlationId =
+      (req.headers[CORRELATION_ID_HEADER] as string | undefined) ??
+      randomUUID();
+
+    const requestId = randomUUID();
+
+    // Make IDs available to downstream handlers via res.locals.
+    res.locals[CORRELATION_ID_HEADER] = correlationId;
+    res.locals[REQUEST_ID_HEADER] = requestId;
+
+    // Echo both IDs back in the response so API consumers can log them.
+    res.setHeader(CORRELATION_ID_HEADER, correlationId);
+    res.setHeader(REQUEST_ID_HEADER, requestId);
+
+    next();
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
 PATH: .\src\common\queues\queue.constants.ts
 ############################################################
 
@@ -10756,24 +10946,28 @@ import { Global, Module } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
-// فصلنا إنشاء الاتصال عشان TypeScript ميزعلش
 const createRedisConnection = () => {
   const redisUrl = process.env.REDIS_URL;
 
-  // لو فيه URL كامل استخدمه (مع الدعم التلقائي للاتصال المشفر rediss://)
   if (redisUrl) {
+    // rediss:// scheme means TLS is required — certificate verification is
+    // always enforced. Never pass rejectUnauthorized: false in any environment;
+    // doing so silently strips the security guarantee of TLS entirely.
     return new IORedis(redisUrl, {
       maxRetriesPerRequest: null,
-      tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
     });
   }
 
-  // لو مفيش، استخدم الـ Object مع إضافة دعم الباسورد والسحابة
+  const tlsEnabled = process.env.REDIS_TLS === 'true';
+
   return new IORedis({
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD || undefined, // Added for Production Redis
-    tls: process.env.REDIS_TLS === 'true' ? { rejectUnauthorized: false } : undefined, // Added for Secure Cloud Redis
+    password: process.env.REDIS_PASSWORD || undefined,
+    // tls: {} with no overrides means Node.js enforces full certificate chain
+    // validation using the system CA store. Do NOT add rejectUnauthorized: false
+    // — it defeats TLS entirely and exposes credentials to MITM attacks.
+    tls: tlsEnabled ? {} : undefined,
     maxRetriesPerRequest: null,
   });
 };
@@ -10794,13 +10988,103 @@ export const redisConnection = createRedisConnection();
     },
     {
       provide: 'STOCK_QUEUE',
-      useFactory: () =>
-        new Queue('stock', { connection: redisConnection }),
+      useFactory: () => new Queue('stock', { connection: redisConnection }),
     },
   ],
   exports: ['MAINTENANCE_QUEUE', 'STOCK_QUEUE', 'REDIS_CONNECTION'],
 })
 export class QueueModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\config\cache.config.ts
+############################################################
+
+/**
+ * Shared cache TTL constants (milliseconds).
+ *
+ * These are intentionally conservative — data that changes rarely (brands,
+ * models, services) gets a longer TTL; data that changes more frequently
+ * (inventory) gets a shorter one.
+ *
+ * All values can be overridden via environment variables so production
+ * tuning never requires a code change.
+ */
+export const CACHE_TTL = {
+  /** Car brands and models — change only when admin adds new ones */
+  BRANDS: Number(process.env.CACHE_TTL_BRANDS_MS) || 5 * 60 * 1000, // 5 min
+
+  /** Service catalogue — changes only when admin edits services */
+  SERVICES: Number(process.env.CACHE_TTL_SERVICES_MS) || 5 * 60 * 1000, // 5 min
+} as const;
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\config\env.validation.ts
+############################################################
+
+import * as Joi from 'joi';
+
+/**
+ * Validates all environment variables at bootstrap time.
+ * If any required variable is missing or has the wrong shape the application
+ * refuses to start and prints a clear error — no silent failures mid-request.
+ *
+ * Rules:
+ *   - required()   → must be present and non-empty
+ *   - optional()   → may be absent; default() is applied when absent
+ *   - valid(...)   → must be one of the listed values
+ */
+export const envValidationSchema = Joi.object({
+  // ── Runtime ────────────────────────────────────────────────────────────
+  NODE_ENV: Joi.string()
+    .valid('development', 'test', 'production')
+    .default('development'),
+
+  PORT: Joi.number().integer().min(1).max(65535).default(3000),
+
+  // ── Database ───────────────────────────────────────────────────────────
+  DATABASE_URL: Joi.string()
+    .uri({ scheme: ['postgresql', 'postgres'] })
+    .required(),
+
+  // ── JWT ────────────────────────────────────────────────────────────────
+  // Minimum 32 characters enforced — short secrets are brute-forceable.
+  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+
+  JWT_ACCESS_EXPIRES_IN: Joi.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
+
+  // ── Redis ──────────────────────────────────────────────────────────────
+  // Either REDIS_URL (managed cloud) or REDIS_HOST + REDIS_PORT (self-hosted).
+  // At least one of the two must be present — enforced via .or() below.
+  REDIS_URL: Joi.string()
+    .uri({ scheme: ['redis', 'rediss'] })
+    .optional(),
+  REDIS_HOST: Joi.string().optional(),
+  REDIS_PORT: Joi.number().integer().min(1).max(65535).default(6379),
+  REDIS_PASSWORD: Joi.string().optional().allow(''),
+  REDIS_TLS: Joi.string().valid('true', 'false').default('false'),
+
+  // ── CORS ───────────────────────────────────────────────────────────────
+  CORS_ORIGIN: Joi.string().optional(),
+
+  // ── Postgres (Docker Compose only — not used by the app directly) ──────
+  POSTGRES_USER: Joi.string().optional(),
+  POSTGRES_PASSWORD: Joi.string().optional(),
+  POSTGRES_DB: Joi.string().optional(),
+})
+  // At least one Redis connection method must be provided.
+  .or('REDIS_URL', 'REDIS_HOST')
+  // Unknown keys in .env are allowed (e.g. CI-injected variables) but
+  // are stripped before being handed to ConfigService.
+  .options({ allowUnknown: false, abortEarly: false });
+
 
 ******************** END OF FILE ********************
 
@@ -11606,6 +11890,129 @@ export class FleetPrismaRepository implements IFleetRepository {
       if (endDate) (where.createdAt as Prisma.DateTimeFilter).lte = endDate;
     }
     return where;
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\health\health.controller.ts
+############################################################
+
+import { Controller, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import {
+  HealthCheck,
+  HealthCheckService,
+  PrismaHealthIndicator,
+} from '@nestjs/terminus';
+import { PrismaService } from '../prisma/prisma.service';
+import { RedisHealthIndicator } from './redis.health';
+
+@ApiTags('Health')
+@Controller('health')
+export class HealthController {
+  constructor(
+    private readonly health: HealthCheckService,
+    private readonly prismaHealth: PrismaHealthIndicator,
+    private readonly redisHealth: RedisHealthIndicator,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  /**
+   * Liveness probe — is the process alive?
+   * Used by Docker/Railway to decide whether to restart the container.
+   * Never checks dependencies — a slow DB must not cause a restart loop.
+   */
+  @Get()
+  @ApiOperation({ summary: 'Liveness probe — process uptime only' })
+  liveness() {
+    return {
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Readiness probe — are all dependencies reachable?
+   * Used by load balancers to decide whether to route traffic here.
+   * Returns 200 only when both PostgreSQL and Redis are reachable.
+   * Returns 503 if either dependency is down.
+   */
+  @Get('ready')
+  @HealthCheck()
+  @ApiOperation({
+    summary: 'Readiness probe — checks PostgreSQL and Redis connectivity',
+  })
+  readiness() {
+    return this.health.check([
+      // Runs a lightweight SELECT 1 against PostgreSQL via the existing
+      // PrismaService connection pool — no extra connection opened.
+      () => this.prismaHealth.pingCheck('postgresql', this.prisma),
+
+      // PINGs the shared IORedis connection used by BullMQ queues.
+      () => this.redisHealth.isHealthy('redis'),
+    ]);
+  }
+}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\health\health.module.ts
+############################################################
+
+import { Module } from '@nestjs/common';
+import { TerminusModule } from '@nestjs/terminus';
+import { HealthController } from './health.controller';
+import { RedisHealthIndicator } from './redis.health';
+
+@Module({
+  imports: [TerminusModule],
+  controllers: [HealthController],
+  providers: [RedisHealthIndicator],
+})
+export class HealthModule {}
+
+
+******************** END OF FILE ********************
+
+############################################################
+PATH: .\src\health\redis.health.ts
+############################################################
+
+import { Injectable } from '@nestjs/common';
+import {
+  HealthIndicatorService,
+  HealthIndicatorResult,
+} from '@nestjs/terminus';
+import { redisConnection } from '../common/queues/queue.module';
+
+@Injectable()
+export class RedisHealthIndicator {
+  constructor(
+    private readonly healthIndicatorService: HealthIndicatorService,
+  ) {}
+
+  async isHealthy(key: string): Promise<HealthIndicatorResult> {
+    const indicator = this.healthIndicatorService.check(key);
+
+    try {
+      const result = await redisConnection.ping();
+
+      if (result !== 'PONG') {
+        return indicator.down({ message: 'Redis ping did not return PONG' });
+      }
+
+      return indicator.up();
+    } catch (error) {
+      return indicator.down({
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 
@@ -12551,21 +12958,14 @@ export class MaintenanceService {
 
   // ─── Records ─────────────────────────────────────────────────────────────
 
-  /**
-   * Record that a maintenance service was performed on a car.
-   * Also updates car.mileageKm if the record mileage is higher.
-   */
   async recordMaintenance(
     carId: string,
     dto: RecordMaintenanceDto,
     userContext: AuthUser,
   ) {
-    // Verifies car exists and caller has access (owns the car or same org or ADMIN)
     const car = await this.carsService.findOne(carId, userContext);
-
     const record = await this.repository.createRecord(carId, dto);
 
-    // Keep car.mileageKm in sync — only ever moves forward
     if (dto.mileageKm > car.mileageKm) {
       await this.repository.updateCarMileage(carId, dto.mileageKm);
     }
@@ -12578,108 +12978,100 @@ export class MaintenanceService {
     userContext: AuthUser,
     pagination?: PaginationDto,
   ) {
-    // Ownership check
     await this.carsService.findOne(carId, userContext);
     return this.repository.findRecordsByCarId(carId, pagination);
   }
 
   // ─── Health Status ───────────────────────────────────────────────────────
 
-  /**
-   * Calculates maintenance health based on actual service history.
-   * For each rule, finds the most recent MaintenanceRecord for that
-   * car+service pair and computes next-due from there.
-   */
   async getCarMaintenanceStatus(carId: string, userContext: AuthUser) {
     const car = await this.carsService.findOne(carId, userContext);
     const rules = await this.repository.findRulesByModel(car.modelId);
 
-    const report = await Promise.all(
-      rules.map(async (rule) => {
-        // ── Mileage-based rule ─────────────────────────────────────────
-        if (rule.intervalKm) {
-          const lastRecord = await this.repository.findLastRecord(
-            carId,
-            rule.serviceId,
-          );
+    // was Promise.all(rules.map(() => findLastRecord(carId, serviceId)))
+    // which fired one SELECT per rule. Now we issue a single bulk query and
+    // resolve each rule from an in-memory map — O(1) per rule, 1 DB call total
+    // regardless of how many rules the model has.
+    const lastRecordMap = await this.repository.findLastRecordsForCar(carId);
 
-          if (!lastRecord) {
-            return {
-              serviceName: rule.service.name,
-              category: rule.service.category,
-              intervalKm: rule.intervalKm,
-              lastPerformedAtKm: null,
-              nextDueAtKm: rule.intervalKm,
-              remainingKm: rule.intervalKm - car.mileageKm,
-              status:
-                car.mileageKm >= rule.intervalKm
-                  ? 'OVERDUE'
-                  : 'PENDING_FIRST_SERVICE',
-              lastPerformedAt: null,
-            };
-          }
+    const report = rules.map((rule) => {
+      // ── Mileage-based rule ─────────────────────────────────────────────
+      if (rule.intervalKm) {
+        const lastRecord = lastRecordMap.get(rule.serviceId) ?? null;
 
-          const nextDueKm = lastRecord.mileageKm + rule.intervalKm;
-          const remainingKm = nextDueKm - car.mileageKm;
-          let status = 'OK';
-          if (remainingKm <= 0) status = 'OVERDUE';
-          else if (remainingKm < 1000) status = 'DUE_SOON';
-
+        if (!lastRecord) {
           return {
             serviceName: rule.service.name,
             category: rule.service.category,
             intervalKm: rule.intervalKm,
-            lastPerformedAtKm: lastRecord.mileageKm,
-            nextDueAtKm: nextDueKm,
-            remainingKm,
-            status,
-            lastPerformedAt: lastRecord.performedAt,
+            lastPerformedAtKm: null,
+            nextDueAtKm: rule.intervalKm,
+            remainingKm: rule.intervalKm - car.mileageKm,
+            status:
+              car.mileageKm >= rule.intervalKm
+                ? 'OVERDUE'
+                : 'PENDING_FIRST_SERVICE',
+            lastPerformedAt: null,
           };
         }
 
-        // ── Month-based rule ───────────────────────────────────────────
-        if (rule.intervalMonths) {
-          const lastRecord = await this.repository.findLastRecord(
-            carId,
-            rule.serviceId,
-          );
+        const nextDueKm = lastRecord.mileageKm + rule.intervalKm;
+        const remainingKm = nextDueKm - car.mileageKm;
+        let status = 'OK';
+        if (remainingKm <= 0) status = 'OVERDUE';
+        else if (remainingKm < 1000) status = 'DUE_SOON';
 
-          if (!lastRecord) {
-            return {
-              serviceName: rule.service.name,
-              category: rule.service.category,
-              intervalMonths: rule.intervalMonths,
-              nextDueAt: null,
-              status: 'PENDING_FIRST_SERVICE',
-              lastPerformedAt: null,
-            };
-          }
+        return {
+          serviceName: rule.service.name,
+          category: rule.service.category,
+          intervalKm: rule.intervalKm,
+          lastPerformedAtKm: lastRecord.mileageKm,
+          nextDueAtKm: nextDueKm,
+          remainingKm,
+          status,
+          lastPerformedAt: lastRecord.performedAt,
+        };
+      }
 
-          const nextDue = new Date(lastRecord.performedAt);
-          nextDue.setMonth(nextDue.getMonth() + rule.intervalMonths);
-          const now = new Date();
-          const daysRemaining = Math.ceil(
-            (nextDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-          );
+      // ── Month-based rule ───────────────────────────────────────────────
+      if (rule.intervalMonths) {
+        const lastRecord = lastRecordMap.get(rule.serviceId) ?? null;
 
-          let status = 'OK';
-          if (daysRemaining <= 0) status = 'OVERDUE';
-          else if (daysRemaining <= 14) status = 'DUE_SOON';
-
+        if (!lastRecord) {
           return {
             serviceName: rule.service.name,
             category: rule.service.category,
             intervalMonths: rule.intervalMonths,
-            nextDueAt: nextDue,
-            daysRemaining,
-            status,
-            lastPerformedAt: lastRecord.performedAt,
+            nextDueAt: null,
+            status: 'PENDING_FIRST_SERVICE',
+            lastPerformedAt: null,
           };
         }
 
-        return null;
-      }),
-    );
+        const nextDue = new Date(lastRecord.performedAt);
+        nextDue.setMonth(nextDue.getMonth() + rule.intervalMonths);
+        const now = new Date();
+        const daysRemaining = Math.ceil(
+          (nextDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        let status = 'OK';
+        if (daysRemaining <= 0) status = 'OVERDUE';
+        else if (daysRemaining <= 14) status = 'DUE_SOON';
+
+        return {
+          serviceName: rule.service.name,
+          category: rule.service.category,
+          intervalMonths: rule.intervalMonths,
+          nextDueAt: nextDue,
+          daysRemaining,
+          status,
+          lastPerformedAt: lastRecord.performedAt,
+        };
+      }
+
+      return null;
+    });
 
     return report.filter((r) => r !== null);
   }
@@ -12937,6 +13329,7 @@ export class MaintenanceRepository {
     });
   }
 
+  // ── Single record lookup (kept for targeted use outside status checks) ──
   async findLastRecord(
     carId: string,
     serviceId: string,
@@ -12945,6 +13338,43 @@ export class MaintenanceRepository {
       where: { carId, serviceId },
       orderBy: { performedAt: 'desc' },
     });
+  }
+
+  // ── Bulk lookup: one query for ALL services of a car ───────────────────
+  //
+  // Uses a subquery pattern: for each (carId, serviceId) pair, fetch the
+  // record with the highest performedAt. This replaces the previous pattern
+  // of calling findLastRecord once per rule inside Promise.all, which fired
+  // N parallel SELECT queries for a car with N maintenance rules.
+  //
+  // The result is a Map<serviceId, MaintenanceRecord> so the service layer
+  // can do O(1) lookups per rule without any further DB calls.
+  async findLastRecordsForCar(
+    carId: string,
+  ): Promise<Map<string, MaintenanceRecord>> {
+    // Fetch all records for this car ordered by performedAt descending.
+    // We then keep only the first (most recent) record per serviceId in JS.
+    // This is a single query regardless of how many rules the model has.
+    //
+    // Alternative: a raw SQL DISTINCT ON (serviceId) query would be slightly
+    // more efficient at very large history sizes, but for the expected data
+    // volume a single findMany + in-memory dedup is simpler and safe.
+    const records = await this.prisma.maintenanceRecord.findMany({
+      where: { carId },
+      orderBy: { performedAt: 'desc' },
+    });
+
+    const lastRecordMap = new Map<string, MaintenanceRecord>();
+
+    for (const record of records) {
+      // Because records are ordered desc, the first time we see a serviceId
+      // is guaranteed to be its most recent record — skip subsequent ones.
+      if (!lastRecordMap.has(record.serviceId)) {
+        lastRecordMap.set(record.serviceId, record);
+      }
+    }
+
+    return lastRecordMap;
   }
 
   async updateCarMileage(carId: string, mileageKm: number): Promise<void> {
@@ -13938,7 +14368,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Order, OrderStatus, Prisma } from '@prisma/client';
+import { Order, OrderStatus, Prisma, Part, Service } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import {
   PaginationDto,
@@ -13950,7 +14380,6 @@ import {
 } from '../interfaces/orders.repository.interface';
 import { assertValidTransition, isCancellation } from '../order-state-machine';
 
-// Shared include shape — keeps all queries consistent
 const ORDER_INCLUDE = {
   items: { include: { part: true, service: true } },
 } as const;
@@ -13966,32 +14395,82 @@ export class OrdersPrismaRepository implements IOrdersRepository {
     data: CreateOrderDto,
   ): Promise<OrderWithItems> {
     return this.prisma.$transaction(async (tx) => {
+      // ── Step 1: collect all IDs up front ────────────────────────────
+      const partIds: string[] = [
+        ...new Set(
+          data.items
+            .filter((i): i is typeof i & { partId: string } => i.partId != null)
+            .map((i) => i.partId),
+        ),
+      ];
+
+      const serviceIds: string[] = [
+        ...new Set(
+          data.items
+            .filter(
+              (i): i is typeof i & { serviceId: string } => i.serviceId != null,
+            )
+            .map((i) => i.serviceId),
+        ),
+      ];
+
+      // ── Step 2: bulk fetch parts and services in two queries ─────────
+      const [parts, services]: [Part[], Service[]] = await Promise.all([
+        partIds.length > 0
+          ? tx.part.findMany({
+              where: { id: { in: partIds }, deletedAt: null },
+            })
+          : Promise.resolve([] as Part[]),
+
+        serviceIds.length > 0
+          ? tx.service.findMany({
+              where: {
+                id: { in: serviceIds },
+                deletedAt: null,
+                isActive: true,
+              },
+            })
+          : Promise.resolve([] as Service[]),
+      ]);
+
+      // ── Step 3: index into maps for O(1) lookup per item ─────────────
+      const partMap = new Map<string, Part>(parts.map((p) => [p.id, p]));
+      const serviceMap = new Map<string, Service>(
+        services.map((s) => [s.id, s]),
+      );
+
+      // ── Step 4: validate stock and compute totals ────────────────────
       let totalPrice = 0;
       const orderItemsData: Prisma.OrderItemCreateManyOrderInput[] = [];
 
-      for (const item of data.items) {
-        let price = 0;
+      // Accumulate stock decrements per part so duplicate partIds in the
+      // same order are collapsed into a single update.
+      const stockDecrements = new Map<string, number>();
 
+      for (const item of data.items) {
         if (item.partId) {
-          const part = await tx.part.findFirst({
-            where: { id: item.partId, deletedAt: null },
-          });
+          const part = partMap.get(item.partId);
+
           if (!part) {
             throw new NotFoundException(
               `Part ID ${item.partId} not found or has been removed`,
             );
           }
-          if (part.quantity < item.quantity) {
+
+          const alreadyRequested = stockDecrements.get(part.id) ?? 0;
+          const totalRequested = alreadyRequested + item.quantity;
+
+          if (part.quantity < totalRequested) {
             throw new BadRequestException(
-              `Insufficient stock for part "${part.name}": ${part.quantity} available, ${item.quantity} requested`,
+              `Insufficient stock for part "${part.name}": ` +
+                `${part.quantity} available, ${totalRequested} requested`,
             );
           }
 
-          price = Number(part.price);
-          await tx.part.update({
-            where: { id: part.id },
-            data: { quantity: { decrement: item.quantity } },
-          });
+          stockDecrements.set(part.id, totalRequested);
+
+          const price = Number(part.price);
+          totalPrice += price * item.quantity;
 
           orderItemsData.push({
             partId: item.partId,
@@ -13999,16 +14478,17 @@ export class OrdersPrismaRepository implements IOrdersRepository {
             price: new Prisma.Decimal(price),
           });
         } else if (item.serviceId) {
-          const service = await tx.service.findFirst({
-            where: { id: item.serviceId, deletedAt: null, isActive: true },
-          });
+          const service = serviceMap.get(item.serviceId);
+
           if (!service) {
             throw new NotFoundException(
               `Service ID ${item.serviceId} not found, inactive, or has been removed`,
             );
           }
 
-          price = Number(service.basePrice);
+          const price = Number(service.basePrice);
+          totalPrice += price * item.quantity;
+
           orderItemsData.push({
             serviceId: item.serviceId,
             quantity: item.quantity,
@@ -14019,10 +14499,19 @@ export class OrdersPrismaRepository implements IOrdersRepository {
             'Each order item must have either a partId or a serviceId',
           );
         }
-
-        totalPrice += price * item.quantity;
       }
 
+      // ── Step 5: apply all stock decrements in parallel ───────────────
+      await Promise.all(
+        Array.from(stockDecrements.entries()).map(([partId, quantity]) =>
+          tx.part.update({
+            where: { id: partId },
+            data: { quantity: { decrement: quantity } },
+          }),
+        ),
+      );
+
+      // ── Step 6: create the order ─────────────────────────────────────
       return tx.order.create({
         data: {
           userId,
@@ -14099,24 +14588,12 @@ export class OrdersPrismaRepository implements IOrdersRepository {
     });
   }
 
-  /**
-   * Reads the current order with a row-level lock inside a serializable
-   * transaction, validates the state transition, reverses stock if cancelling,
-   * then writes the new status — all atomically.
-   *
-   * Using Prisma interactive transactions with READ COMMITTED isolation is the
-   * default. For the strongest guarantee against concurrent double-cancellation
-   * we issue a raw SELECT ... FOR UPDATE before reading the row, ensuring only
-   * one concurrent caller proceeds at a time.
-   */
   async updateStatusAtomically(
     orderId: string,
     newStatus: OrderStatus,
   ): Promise<OrderWithItems> {
     return this.prisma.$transaction(
       async (tx) => {
-        // Row-level lock — prevents concurrent transactions from reading the
-        // same order status simultaneously and both passing the transition check.
         await tx.$executeRaw`
           SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE
         `;
@@ -14130,19 +14607,19 @@ export class OrdersPrismaRepository implements IOrdersRepository {
           throw new NotFoundException('Order not found');
         }
 
-        // Re-validate transition inside the lock — the state may have changed
-        // between the service-layer check and this transaction acquiring the lock.
         assertValidTransition(order.status, newStatus);
 
-        // Reverse stock for every part item if this is a cancellation
         if (isCancellation(newStatus)) {
           const partItems = order.items.filter((item) => item.partId !== null);
-          for (const item of partItems) {
-            await tx.part.update({
-              where: { id: item.partId! },
-              data: { quantity: { increment: item.quantity } },
-            });
-          }
+
+          await Promise.all(
+            partItems.map((item) =>
+              tx.part.update({
+                where: { id: item.partId! },
+                data: { quantity: { increment: item.quantity } },
+              }),
+            ),
+          );
         }
 
         return tx.order.update({
@@ -14152,8 +14629,6 @@ export class OrdersPrismaRepository implements IOrdersRepository {
         });
       },
       {
-        // SERIALIZABLE ensures the SELECT FOR UPDATE fully isolates the row
-        // from concurrent writes during the transaction window.
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
@@ -14408,22 +14883,31 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { SERVICES_REPOSITORY } from './interfaces/services.repository.interface';
 import type { IServicesRepository } from './interfaces/services.repository.interface';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { ServiceCategory } from '@prisma/client';
+import { Service, ServiceCategory } from '@prisma/client';
+import { CACHE_TTL } from '../config/cache.config';
+
+const CACHE_KEY = {
+  LIST: (category: string, activeOnly: boolean, skip: number, take: number) =>
+    `services:list:${category}:${activeOnly}:${skip}:${take}`,
+  ALL_LIST_PREFIX: 'services:list:',
+} as const;
 
 @Injectable()
 export class ServicesService {
   constructor(
     @Inject(SERVICES_REPOSITORY)
     private readonly servicesRepository: IServicesRepository,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
-  async create(dto: CreateServiceDto) {
-    // Check for duplicate name
+  async create(dto: CreateServiceDto): Promise<Service> {
     const existing = await this.servicesRepository.findByName(dto.name);
     if (existing) {
       throw new ConflictException(
@@ -14431,20 +14915,37 @@ export class ServicesService {
       );
     }
 
-    return this.servicesRepository.create(dto);
+    const service = await this.servicesRepository.create(dto);
+    await this.invalidateListCache();
+    return service;
   }
 
   async findAll(
     pagination: PaginationDto,
     category?: ServiceCategory,
     isAdmin: boolean = false,
-  ) {
-    // If Admin, show all. If Customer, show only active services.
+  ): Promise<Service[]> {
     const activeOnly = !isAdmin;
-    return this.servicesRepository.findAll(pagination, category, activeOnly);
+    const skip = pagination.skip ?? 0;
+    const take = pagination.take ?? 20;
+    const key = CACHE_KEY.LIST(category ?? 'all', activeOnly, skip, take);
+
+    // Explicitly type the cache.get call so TypeScript knows what comes back.
+    const cached = await this.cache.get<Service[]>(key);
+    if (cached) return cached;
+
+    const services = await this.servicesRepository.findAll(
+      pagination,
+      category,
+      activeOnly,
+    );
+
+    await this.cache.set(key, services, CACHE_TTL.SERVICES);
+
+    return services;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string): Promise<Service> {
     const service = await this.servicesRepository.findById(id);
     if (!service) {
       throw new NotFoundException(`Service with ID ${id} not found`);
@@ -14452,8 +14953,8 @@ export class ServicesService {
     return service;
   }
 
-  async update(id: string, dto: UpdateServiceDto) {
-    await this.findOne(id); // Ensure exists
+  async update(id: string, dto: UpdateServiceDto): Promise<Service> {
+    await this.findOne(id);
 
     if (dto.name) {
       const duplicate = await this.servicesRepository.findByName(dto.name);
@@ -14464,12 +14965,25 @@ export class ServicesService {
       }
     }
 
-    return this.servicesRepository.update(id, dto);
+    const service = await this.servicesRepository.update(id, dto);
+    await this.invalidateListCache();
+    return service;
   }
 
-  async remove(id: string) {
+  async remove(id: string): Promise<void> {
     await this.findOne(id);
-    return this.servicesRepository.softDelete(id);
+    await this.servicesRepository.softDelete(id);
+    await this.invalidateListCache();
+  }
+
+  private async invalidateListCache(): Promise<void> {
+    const registry =
+      (await this.cache.get<string[]>(CACHE_KEY.ALL_LIST_PREFIX)) ?? [];
+
+    await Promise.all([
+      ...registry.map((key) => this.cache.del(key)),
+      this.cache.del(CACHE_KEY.ALL_LIST_PREFIX),
+    ]);
   }
 }
 
@@ -15748,12 +16262,6 @@ export class UsersPrismaRepository implements IUsersRepository {
     });
   }
 
-  /**
-   * resolvedOrgId is pre-resolved by UsersService from the caller's JWT.
-   * The repository never reads organizationId from dto — it only writes
-   * what the service has already validated and resolved.
-   * The write is atomic inside the single prisma.user.create() call.
-   */
   async adminCreateUser(
     dto: CreateUserDto,
     hash: string,
@@ -15783,14 +16291,17 @@ export class UsersPrismaRepository implements IUsersRepository {
   }
 
   async findById(id: string): Promise<SafeUser | null> {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       where: { id, deletedAt: null },
       select: SAFE_USER_SELECT,
     });
   }
 
+  // ── FIX: was findUnique — Prisma rejects compound where clauses on
+  // findUnique when the extra field (deletedAt) is not part of a @unique
+  // constraint. findFirst is the correct method here.
   async findByIdWithPassword(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       where: { id, deletedAt: null },
     });
   }
