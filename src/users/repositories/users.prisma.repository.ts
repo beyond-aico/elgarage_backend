@@ -66,12 +66,6 @@ export class UsersPrismaRepository implements IUsersRepository {
     });
   }
 
-  /**
-   * resolvedOrgId is pre-resolved by UsersService from the caller's JWT.
-   * The repository never reads organizationId from dto — it only writes
-   * what the service has already validated and resolved.
-   * The write is atomic inside the single prisma.user.create() call.
-   */
   async adminCreateUser(
     dto: CreateUserDto,
     hash: string,
@@ -101,14 +95,17 @@ export class UsersPrismaRepository implements IUsersRepository {
   }
 
   async findById(id: string): Promise<SafeUser | null> {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       where: { id, deletedAt: null },
       select: SAFE_USER_SELECT,
     });
   }
 
+  // ── FIX: was findUnique — Prisma rejects compound where clauses on
+  // findUnique when the extra field (deletedAt) is not part of a @unique
+  // constraint. findFirst is the correct method here.
   async findByIdWithPassword(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       where: { id, deletedAt: null },
     });
   }

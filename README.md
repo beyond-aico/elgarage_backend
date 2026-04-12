@@ -2,180 +2,211 @@
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-<p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-<p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-</p>
-
 ## Description
 
-**Car Service Backend API** - An enterprise-grade backend system for managing car maintenance, user bookings, and inventory.
+**Car Service Backend API** — An enterprise-grade backend system for managing car maintenance, user bookings, and inventory.
 
-This project utilizes a modern stack designed for scalability and reliability:
-* **Framework:** [NestJS](https://github.com/nestjs/nest) (Node.js)
+This project utilises a modern stack designed for scalability and reliability:
+
+* **Framework:** [NestJS](https://github.com/nestjs/nest) v11 (Node.js v20)
 * **Database:** PostgreSQL 15
-* **ORM:** Prisma (v7 with Driver Adapters)
-* **Caching/Queues:** Redis 7
-* **Containerization:** Docker & Docker Compose
+* **ORM:** Prisma v6 (with Driver Adapters via `@prisma/adapter-pg`)
+* **Caching:** In-process TTL cache via `@nestjs/cache-manager`
+* **Queues:** BullMQ backed by Redis 7
+* **Containerisation:** Docker & Docker Compose
 
-## 📋 Prerequisites
+---
 
-Ensure you have the following installed on your machine:
+## Prerequisites
+
+Ensure the following are installed and running:
+
 * **Git**
-* **Docker Desktop** (running)
+* **Docker Desktop**
+* **Node.js v20+** (for local development without Docker)
 * **PowerShell** (Windows) or **Terminal** (Linux/macOS)
 
-## 🚀 Getting Started (Docker)
+---
 
-We recommend running this application via Docker to ensure all dependencies (Postgres, Redis) are configured correctly.
+## Getting started (Docker)
 
-### 1. Configure Environment
-Create a file named `.env` in the root directory. Copy the contents from the **Configuration** section below.
+### 1. Configure environment
 
-### 2. Build and Start
-Run the following command to build the containers.
-*Note: The `--build` flag is critical to ensure the Prisma 7 adapter is installed correctly.*
+Create a `.env` file in the project root using `.env.example` as the template:
 
 ```bash
-$ docker compose -f docker/docker-compose.yml up --build -d
-
+cp .env.example .env
 ```
 
-*Wait ~30-60 seconds for the database and API to initialize.*
+Edit the values — at minimum set the JWT secrets to long random strings (32+ characters each).
 
-### 3. Initialize Database
-
-Apply the schema migrations to create the database tables:
+### 2. Build and start
 
 ```bash
-$ docker compose -f docker/docker-compose.yml exec api npx prisma migrate deploy
-
+docker compose -f docker/docker-compose.yml up --build -d
 ```
 
-*Expected Output: "No pending migrations to apply" (if up to date) or a list of applied migrations.*
+Wait 30–60 seconds for PostgreSQL and the API to initialise.
 
-## 🧪 Validating the Installation
+### 3. Apply database migrations
 
-You can verify the system is operational by registering a test user.
+```bash
+docker compose -f docker/docker-compose.yml exec api npx prisma migrate deploy
+```
+
+Expected output: `"No pending migrations to apply"` (if up to date) or a list of applied migrations.
+
+### 4. Seed reference data (optional)
+
+```bash
+docker compose -f docker/docker-compose.yml exec api npm run prisma:seed
+```
+
+---
+
+## Validating the installation
+
+### macOS / Linux
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "securePassword123", "name": "Admin"}'
+```
 
 ### Windows (PowerShell)
 
 ```powershell
 $body = @{
-    email = "admin@example.com"
+    email    = "admin@example.com"
     password = "securePassword123"
+    name     = "Admin"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Uri "http://localhost:3000/auth/register" `
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/register" `
   -Method Post `
   -ContentType "application/json" `
   -Body $body
-
 ```
 
-### macOS / Linux (Bash)
-
-```bash
-curl -X POST http://localhost:3000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@example.com", "password": "securePassword123"}'
-
-```
-
-**Expected Response:**
-You should receive a JSON response containing an `accessToken` and `refreshToken`.
+**Expected response:** a JSON object containing `accessToken` and `refreshToken`.
 
 ---
 
-## 🛠 Troubleshooting
+## Health checks
 
-**Issue: "PrismaClientConstructorValidationError"**
-If you encounter errors regarding the Prisma engine or client version:
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Liveness — process uptime only. Never fails due to dependencies. |
+| `GET /health/ready` | Readiness — probes PostgreSQL and Redis. Returns `503` if either is unreachable. |
 
-1. Stop the containers:
-```bash
-docker compose -f docker/docker-compose.yml down
+---
 
-```
+## API documentation
 
+Swagger UI is available at `/docs` in **non-production environments only**.
 
-2. Rebuild without cache to force a fresh dependency install:
-```bash
-docker compose -f docker/docker-compose.yml build --no-cache api
+Start the server locally and open: [http://localhost:3000/docs](http://localhost:3000/docs)
 
-```
+---
 
+## Local development (without Docker)
 
-3. Start again:
-```bash
-docker compose -f docker/docker-compose.yml up -d
-
-```
-
-
-
-**Issue: "Connection Refused"**
-Ensure that Docker Desktop is running and that port `3000` is not being used by another application.
-
-## Local Development (Without Docker)
-
-If you prefer to run Node.js locally (requires local Postgres/Redis instances):
+Requires a local PostgreSQL 15 instance and Redis 7.
 
 ```bash
-$ npm install
-
+npm install
 ```
 
 ```bash
 # development
-$ npm run start
+npm run start
 
 # watch mode
-$ npm run start:dev
+npm run start:dev
+
+# production build
+npm run build
 
 # production mode
-$ npm run start:prod
-
+npm run start:prod
 ```
 
-## Run tests
+---
+
+## Running tests
 
 ```bash
 # unit tests
-$ npm run test
+npm run test
+
+# watch mode
+npm run test:watch
+
+# coverage
+npm run test:cov
 
 # e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-
+npm run test:e2e
 ```
+
+---
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `NODE_ENV` | No | `development` / `test` / `production`. Default: `development` |
+| `PORT` | No | HTTP port. Default: `3000` |
+| `DATABASE_URL` | **Yes** | PostgreSQL connection string (`postgresql://...`) |
+| `JWT_ACCESS_SECRET` | **Yes** | Min 32 characters |
+| `JWT_REFRESH_SECRET` | **Yes** | Min 32 characters |
+| `JWT_ACCESS_EXPIRES_IN` | No | Default: `15m` |
+| `JWT_REFRESH_EXPIRES_IN` | No | Default: `7d` |
+| `REDIS_URL` | One of these two | Full Redis URL e.g. `redis://localhost:6379` |
+| `REDIS_HOST` | One of these two | Redis hostname e.g. `localhost` |
+| `REDIS_PORT` | No | Default: `6379` |
+| `REDIS_PASSWORD` | No | Redis password for authenticated instances |
+| `REDIS_TLS` | No | `true` to enable TLS. Default: `false` |
+| `CORS_ORIGIN` | No | Allowed origin(s), comma-separated |
+
+---
+
+## Available scripts
+
+| Script | Description |
+|---|---|
+| `npm run build` | Generates Prisma client and compiles TypeScript |
+| `npm run start:dev` | Starts in watch mode |
+| `npm run start:prod` | Runs migrations then starts the compiled app |
+| `npm run lint` | Runs ESLint with auto-fix |
+| `npm run test` | Runs unit tests |
+| `npm run test:cov` | Runs unit tests with coverage report |
+| `npm run test:e2e` | Runs end-to-end tests |
+| `npm run prisma:seed` | Seeds reference data (brands, models, services, users) |
+
+---
+
+## Troubleshooting
+
+**`PrismaClientConstructorValidationError`**
+
+```bash
+docker compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml build --no-cache api
+docker compose -f docker/docker-compose.yml up -d
+```
+
+**`Connection Refused`**
+
+Ensure Docker Desktop is running and port `3000` is not occupied by another process.
+
+**Config validation error at startup**
+
+The app validates all environment variables at boot. If a required variable is missing or malformed, the process exits immediately with a clear error listing every invalid field. Check your `.env` against the environment variables table above.
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-
-### File 2: `.env`
-
-# Database Connection (Docker Internal Network)
-# Format: postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
-DATABASE_URL="postgresql://postgres:postgres@postgres:5432/car_service?schema=public"
-
-# Redis Configuration
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# Security Secrets (Test/Development Environment)
-# WARNING: Generate new, secure secrets for production use
-JWT_ACCESS_SECRET="fea0bcd8bdb9cb463b1aa9ef3917efe32345e14274a210c523f5c23b8b9412dc27c09aaeefba7949e0c4a57104fddec6ceff20cb5bf108976be32fb3206a1500"
-JWT_REFRESH_SECRET="5e6950eb9aebc7e58ef6e25b83cea4d34eda05537c80c55412a8f1bd48b16b12b753d2914e8ba5797038b8f1be5d5f62310688ab431c4fdda13d610d698086cc"
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
+UNLICENSED

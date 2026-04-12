@@ -1,10 +1,15 @@
-import { IsInt, IsNotEmpty, IsString, Min, Max } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsUUID, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCarDto {
+  // Added @IsUUID('4') — modelId must be a valid UUID v4.
+  // Without this, any non-UUID string passes the validation pipe and only
+  // fails later inside Prisma with a confusing database-level error instead
+  // of a clean 400 Bad Request at the request boundary.
   @ApiProperty({ description: 'UUID of the car model' })
   @IsNotEmpty()
   @IsString()
+  @IsUUID('4', { message: 'modelId must be a valid UUID' })
   modelId!: string;
 
   @ApiProperty({ example: 2022 })

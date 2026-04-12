@@ -16,13 +16,11 @@ async function bootstrap() {
 
   app.use(helmet());
 
-  // Auth rate limiter — applied before the router so it fires on every
-  // /auth/* request regardless of versioning prefix
   app.use(
     '/api/v1/auth',
     rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 20, // max 20 attempts per window per IP
+      windowMs: 15 * 60 * 1000,
+      max: 20,
       standardHeaders: true,
       legacyHeaders: false,
       message: {
@@ -33,7 +31,6 @@ async function bootstrap() {
     }),
   );
 
-  // CORS
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
   let allowedOrigins: string | string[] = 'http://localhost:3000';
 
@@ -54,7 +51,6 @@ async function bootstrap() {
     defaultVersion: '1',
   });
 
-  // Global Validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -64,21 +60,26 @@ async function bootstrap() {
     }),
   );
 
-  // Global Filter & Interceptor
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
   app.useGlobalInterceptors(new TransformInterceptor());
 
   app.useLogger(logger);
 
-  const config = new DocumentBuilder()
-    .setTitle('Car Service API')
-    .setDescription('Enterprise Backend for Car Service Management')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  // ── Swagger: non-production only ────────────────────────────────────────
+  // In production NODE_ENV the /docs route is never registered, so the
+  // API schema is not publicly explorable on the live server.
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Car Service API')
+      .setDescription('Enterprise Backend for Car Service Management')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
+    logger.log('Swagger UI available at /docs (non-production only)');
+  }
 
   app.enableShutdownHooks();
 
@@ -87,6 +88,7 @@ async function bootstrap() {
   console.log(`🚀 Server is listening on port: ${port}`);
   logger.log(`Application is running on: http://0.0.0.0:${port}/api/v1`);
 }
+
 bootstrap().catch((err) => {
   console.error('Error during bootstrap:', err);
 });
