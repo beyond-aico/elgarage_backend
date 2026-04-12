@@ -8,10 +8,10 @@ export class AppController {
   // هذا هو المسار الجديد الذي سيفحصه ريل واي
   @Get('health')
   checkHealth() {
-    return { 
-      status: 'ok', 
+    return {
+      status: 'ok',
       uptime: process.uptime(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
