@@ -3,7 +3,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -11,8 +10,7 @@ import { USERS_REPOSITORY } from './interfaces/users.repository.interface';
 import { UserRole } from '@prisma/client';
 import { AuthUser } from '../auth/types/auth-user.type';
 import { CreateUserDto } from './dto/create-user.dto';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+import type { SafeUser } from './interfaces/users.repository.interface';
 
 function makeAuthUser(
   role: UserRole,
@@ -37,8 +35,6 @@ function makeCreateDto(overrides: Partial<CreateUserDto> = {}): CreateUserDto {
   };
 }
 
-// ─── Mocks ───────────────────────────────────────────────────────────────────
-
 const mockUsersRepository = {
   adminCreateUser: jest.fn(),
   createNormalUser: jest.fn(),
@@ -52,8 +48,6 @@ const mockUsersRepository = {
   updatePassword: jest.fn(),
   softDelete: jest.fn(),
 };
-
-// ─── Suite ───────────────────────────────────────────────────────────────────
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -75,8 +69,6 @@ describe('UsersService', () => {
     expect(service).toBeDefined();
   });
 
-  // ─── create ──────────────────────────────────────────────────────────────
-
   describe('create', () => {
     describe('ADMIN caller', () => {
       it('creates a USER — resolvedOrgId passed to repo is null', async () => {
@@ -91,8 +83,7 @@ describe('UsersService', () => {
           organizationId: null,
         });
 
-        const result = await service.create(dto, caller);
-
+        const result: SafeUser = await service.create(dto, caller);
         expect(result.organizationId).toBeNull();
         expect(mockUsersRepository.adminCreateUser).toHaveBeenCalledWith(
           dto,
@@ -110,8 +101,12 @@ describe('UsersService', () => {
 
         await service.create(dto, caller);
 
-        const [, , resolvedOrgId] =
-          mockUsersRepository.adminCreateUser.mock.calls[0];
+        const calls = mockUsersRepository.adminCreateUser.mock.calls as [
+          unknown,
+          unknown,
+          string | null,
+        ][];
+        const [, , resolvedOrgId] = calls[0];
         expect(resolvedOrgId).toBeNull();
       });
 
@@ -165,7 +160,7 @@ describe('UsersService', () => {
     });
 
     describe('ACCOUNT_MANAGER caller', () => {
-      it('creates a DRIVER — organizationId resolved from caller JWT, not from dto', async () => {
+      it('creates a DRIVER — organizationId resolved from caller JWT', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
           organizationId: 'org-abc',
@@ -179,8 +174,7 @@ describe('UsersService', () => {
           organizationId: 'org-abc',
         });
 
-        const result = await service.create(dto, caller);
-
+        const result: SafeUser = await service.create(dto, caller);
         expect(result.organizationId).toBe('org-abc');
         expect(mockUsersRepository.adminCreateUser).toHaveBeenCalledWith(
           dto,
@@ -189,21 +183,25 @@ describe('UsersService', () => {
         );
       });
 
-      it('creates a DRIVER — caller org is used even if dto had a different org somehow', async () => {
-        // organizationId is not on CreateUserDto by design, but this test
-        // confirms the repo receives the caller's org regardless
+      it('creates a DRIVER — caller org is used', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
           organizationId: 'org-abc',
         });
 
         mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
-        mockUsersRepository.adminCreateUser.mockResolvedValue({ id: 'driver-1' });
+        mockUsersRepository.adminCreateUser.mockResolvedValue({
+          id: 'driver-1',
+        });
 
         await service.create(dto, caller);
 
-        const [, , resolvedOrgId] =
-          mockUsersRepository.adminCreateUser.mock.calls[0];
+        const calls = mockUsersRepository.adminCreateUser.mock.calls as [
+          unknown,
+          unknown,
+          string | null,
+        ][];
+        const [, , resolvedOrgId] = calls[0];
         expect(resolvedOrgId).toBe('org-abc');
       });
 
@@ -260,10 +258,10 @@ describe('UsersService', () => {
         expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
       });
 
-      it('has no organizationId in JWT (malformed token) — throws ForbiddenException', async () => {
+      it('has no organizationId in JWT — throws ForbiddenException', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
-          organizationId: null, // malformed — no org despite being ACCOUNT_MANAGER
+          organizationId: null,
         });
 
         mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
@@ -287,7 +285,7 @@ describe('UsersService', () => {
         expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
       });
 
-      it('throws ConflictException when email already exists — before org resolution', async () => {
+      it('throws ConflictException when email already exists', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
           organizationId: 'org-abc',
@@ -305,8 +303,6 @@ describe('UsersService', () => {
     });
   });
 
-  // ─── findOne ─────────────────────────────────────────────────────────────
-
   describe('findOne', () => {
     it('returns the user when found', async () => {
       mockUsersRepository.findById.mockResolvedValue({
@@ -315,7 +311,6 @@ describe('UsersService', () => {
       });
 
       const result = await service.findOne('u-1');
-
       expect(result).toEqual({ id: 'u-1', email: 'x@x.com' });
     });
 
@@ -323,19 +318,15 @@ describe('UsersService', () => {
       mockUsersRepository.findById.mockResolvedValue(null);
 
       const result = await service.findOne('ghost');
-
       expect(result).toBeNull();
     });
   });
-
-  // ─── findAll ─────────────────────────────────────────────────────────────
 
   describe('findAll', () => {
     it('returns all users when no role filter is given', async () => {
       mockUsersRepository.findAll.mockResolvedValue([{ id: 'u-1' }]);
 
       const result = await service.findAll();
-
       expect(mockUsersRepository.findAll).toHaveBeenCalledWith(undefined);
       expect(result).toHaveLength(1);
     });
@@ -344,12 +335,9 @@ describe('UsersService', () => {
       mockUsersRepository.findAll.mockResolvedValue([]);
 
       await service.findAll(UserRole.DRIVER);
-
       expect(mockUsersRepository.findAll).toHaveBeenCalledWith(UserRole.DRIVER);
     });
   });
-
-  // ─── changePassword ───────────────────────────────────────────────────────
 
   describe('changePassword', () => {
     it('throws UnauthorizedException when user is not found', async () => {
@@ -364,8 +352,6 @@ describe('UsersService', () => {
     });
 
     it('throws UnauthorizedException when current password is wrong', async () => {
-      // bcrypt.compare will return false for a plaintext vs plaintext comparison
-      // so we store a bcrypt hash of a different password
       const bcrypt = await import('bcrypt');
       const wrongHash = await bcrypt.hash('different-password', 10);
 
@@ -402,19 +388,16 @@ describe('UsersService', () => {
       expect(result).toEqual({ message: 'Password changed successfully' });
       expect(mockUsersRepository.updatePassword).toHaveBeenCalledWith(
         'u-1',
-        expect.any(String), // new bcrypt hash
+        expect.any(String),
       );
     });
   });
-
-  // ─── remove ──────────────────────────────────────────────────────────────
 
   describe('remove', () => {
     it('delegates soft delete to repository', async () => {
       mockUsersRepository.softDelete.mockResolvedValue(undefined);
 
       await service.remove('u-1');
-
       expect(mockUsersRepository.softDelete).toHaveBeenCalledWith('u-1');
     });
   });

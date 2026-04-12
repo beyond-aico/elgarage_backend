@@ -625,7 +625,6 @@ PATH: .\tsconfig.json
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./",
     "incremental": false,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -634,8 +633,8 @@ PATH: .\tsconfig.json
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*"],          
-  "exclude": ["node_modules", "dist"] 
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
 
 ******************** END OF FILE ********************
@@ -3193,10 +3192,10 @@ export class AppController {
   // هذا هو المسار الجديد الذي سيفحصه ريل واي
   @Get('health')
   checkHealth() {
-    return { 
-      status: 'ok', 
+    return {
+      status: 'ok',
       uptime: process.uptime(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -3205,6 +3204,7 @@ export class AppController {
     return this.appService.getHello();
   }
 }
+
 
 ******************** END OF FILE ********************
 
@@ -3243,9 +3243,6 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
-// Extracts correlation IDs from res.locals with full type safety.
-// customProps receives the raw Node.js IncomingMessage and ServerResponse —
-// we cast ServerResponse to access locals which Express attaches at runtime.
 function extractCorrelationProps(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -3264,6 +3261,8 @@ const moduleMetadata: ModuleMetadata = {
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: envValidationSchema,
+      // abortEarly: false reports all invalid variables at once.
+      // allowUnknown is already set to true inside the schema itself.
       validationOptions: {
         abortEarly: false,
       },
@@ -3294,8 +3293,6 @@ const moduleMetadata: ModuleMetadata = {
         process.env.NODE_ENV === 'production'
           ? {
               level: 'info',
-              // customProps is the correct pino-http option for attaching
-              // extra fields to every log line from the request context.
               customProps: extractCorrelationProps,
               redact: {
                 paths: [
@@ -9927,7 +9924,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   validate(payload: JwtPayload) {
     return {
       userId: payload.sub,
-      email: payload.email as string,
+      email: payload.email,
       role: payload.role,
       organizationId: payload.organizationId,
     };
@@ -10753,6 +10750,27 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 
+interface HttpExceptionResponse {
+  message?: string | string[];
+  error?: string;
+}
+
+interface ErrorResponseBody {
+  statusCode: number;
+  message: string;
+  error: string;
+  timestamp: string;
+  path: string;
+}
+
+function resolveMessage(value: string | string[]): string {
+  if (Array.isArray(value)) {
+    const first: string | undefined = value[0];
+    return first !== undefined ? first : 'Internal server error';
+  }
+  return value;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -10763,35 +10781,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const { httpAdapter } = this.httpAdapterHost;
     const ctx = host.switchToHttp();
 
-    let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let error = 'Internal Server Error';
+    let httpStatus: number = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message: string | string[] = 'Internal server error';
+    let error: string = 'Internal Server Error';
 
-    // 1. Handle NestJS HttpExceptions
     if (exception instanceof HttpException) {
       httpStatus = exception.getStatus();
       const response = exception.getResponse();
 
       if (typeof response === 'object' && response !== null) {
-        const res = response as { message?: string | string[]; error?: string };
-
+        const res = response as HttpExceptionResponse;
         const incomingMessage = Array.isArray(res.message)
           ? res.message[0]
           : res.message;
-
-        message = incomingMessage || message;
-        error = res.error || error;
+        message = incomingMessage ?? message;
+        error = res.error ?? error;
       } else {
-        // التعديل هنا: تحويل الاستجابة لنص صريح لحل خطأ TS2322
         message = String(response);
       }
-    }
-    // 2. Handle Prisma Errors
-    else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       switch (exception.code) {
         case 'P2002':
           httpStatus = HttpStatus.CONFLICT;
-          message = `Duplicate entry: ${(exception.meta as { target?: string })?.target} already exists.`;
+          message = `Duplicate entry: ${(exception.meta as { target?: string } | undefined)?.target ?? 'unknown'} already exists.`;
           error = 'Conflict';
           break;
         case 'P2025':
@@ -10811,23 +10823,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
           );
           break;
       }
-    }
-    else {
+    } else {
       this.logger.error('Unhandled Exception', exception);
     }
 
-    const responseBody = {
+    const rawUrl: unknown = httpAdapter.getRequestUrl(
+      ctx.getRequest<Request>(),
+    );
+    const path: string = typeof rawUrl === 'string' ? rawUrl : '';
+
+    const responseBody: ErrorResponseBody = {
       statusCode: httpStatus,
-      // تأكيد أخير إن الرسالة نص
-      message: Array.isArray(message) ? message[0] : message,
+      message: resolveMessage(message),
       error,
       timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(ctx.getRequest()),
+      path,
     };
 
-    httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+    httpAdapter.reply(ctx.getResponse<Response>(), responseBody, httpStatus);
   }
 }
+
 
 ******************** END OF FILE ********************
 
@@ -10841,35 +10857,57 @@ import {
   ExecutionContext,
   CallHandler,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-export interface Response<T> {
-  data: T;
+export interface ApiResponse<T> {
   statusCode: number;
   timestamp: string;
+  data: T;
+  meta?: unknown;
+}
+
+interface PaginatedPayload {
+  data: unknown;
+  meta?: unknown;
+}
+
+function isPaginatedPayload(value: unknown): value is PaginatedPayload {
+  return value !== null && typeof value === 'object' && 'data' in value;
 }
 
 @Injectable()
 export class TransformInterceptor<T> implements NestInterceptor<
   T,
-  Response<T>
+  ApiResponse<T>
 > {
   intercept(
     context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<Response<T>> {
-    const ctx = context.switchToHttp();
-    const response = ctx.getResponse();
+    next: CallHandler<T>,
+  ): Observable<ApiResponse<T>> {
+    const response = context.switchToHttp().getResponse<Response>();
 
     return next.handle().pipe(
-      map((data) => ({
-        statusCode: response.statusCode,
-        timestamp: new Date().toISOString(),
-        // Check if data is already an object with 'data' property (pagination)
-        data: data && data.data ? data.data : data,
-        meta: data && data.meta ? data.meta : undefined, // Support pagination meta
-      })),
+      map((data: T): ApiResponse<T> => {
+        const statusCode: number = response.statusCode;
+
+        if (isPaginatedPayload(data)) {
+          return {
+            statusCode,
+            timestamp: new Date().toISOString(),
+            data: data.data as T,
+            meta: data.meta,
+          };
+        }
+
+        return {
+          statusCode,
+          timestamp: new Date().toISOString(),
+          data,
+          meta: undefined,
+        };
+      }),
     );
   }
 }
@@ -11029,16 +11067,6 @@ PATH: .\src\config\env.validation.ts
 
 import * as Joi from 'joi';
 
-/**
- * Validates all environment variables at bootstrap time.
- * If any required variable is missing or has the wrong shape the application
- * refuses to start and prints a clear error — no silent failures mid-request.
- *
- * Rules:
- *   - required()   → must be present and non-empty
- *   - optional()   → may be absent; default() is applied when absent
- *   - valid(...)   → must be one of the listed values
- */
 export const envValidationSchema = Joi.object({
   // ── Runtime ────────────────────────────────────────────────────────────
   NODE_ENV: Joi.string()
@@ -11053,21 +11081,24 @@ export const envValidationSchema = Joi.object({
     .required(),
 
   // ── JWT ────────────────────────────────────────────────────────────────
-  // Minimum 32 characters enforced — short secrets are brute-forceable.
-  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
-  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+  JWT_ACCESS_SECRET: Joi.string().required(),
+  JWT_REFRESH_SECRET: Joi.string().required(),
 
   JWT_ACCESS_EXPIRES_IN: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
 
   // ── Redis ──────────────────────────────────────────────────────────────
-  // Either REDIS_URL (managed cloud) or REDIS_HOST + REDIS_PORT (self-hosted).
-  // At least one of the two must be present — enforced via .or() below.
   REDIS_URL: Joi.string()
     .uri({ scheme: ['redis', 'rediss'] })
     .optional(),
-  REDIS_HOST: Joi.string().optional(),
-  REDIS_PORT: Joi.number().integer().min(1).max(65535).default(6379),
+
+  REDIS_HOST: Joi.string().optional().allow(''),
+
+  // allow('') handles the case where Railway sets REDIS_PORT as an empty
+  // string. empty() converts empty string to undefined so default(6379)
+  // then applies correctly instead of failing the number check.
+  REDIS_PORT: Joi.number().integer().min(1).max(65535).empty('').default(6379),
+
   REDIS_PASSWORD: Joi.string().optional().allow(''),
   REDIS_TLS: Joi.string().valid('true', 'false').default('false'),
 
@@ -11079,11 +11110,11 @@ export const envValidationSchema = Joi.object({
   POSTGRES_PASSWORD: Joi.string().optional(),
   POSTGRES_DB: Joi.string().optional(),
 })
-  // At least one Redis connection method must be provided.
+  // At least one Redis connection method must be present.
   .or('REDIS_URL', 'REDIS_HOST')
-  // Unknown keys in .env are allowed (e.g. CI-injected variables) but
-  // are stripped before being handed to ConfigService.
-  .options({ allowUnknown: false, abortEarly: false });
+  // allowUnknown: true — Railway injects its own variables into every
+  // container at runtime (RAILWAY_*, npm_*, PATH, HOME, HOSTNAME, etc.).
+  .options({ allowUnknown: true, abortEarly: false });
 
 
 ******************** END OF FILE ********************
@@ -13772,10 +13803,20 @@ describe('OrdersService', () => {
 
   describe('findAll', () => {
     it('passes no userId filter for ADMIN — sees all orders', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      mockOrdersRepository.findAll.mockResolvedValue({
+        data: [],
+        total: 0,
+        skip: 0,
+        take: 10,
+      });
       const admin = makeUser(UserRole.ADMIN);
 
-      await service.findAll({ skip: 0, take: 10 }, admin.userId, UserRole.ADMIN, admin);
+      await service.findAll(
+        { skip: 0, take: 10 },
+        admin.userId,
+        UserRole.ADMIN,
+        admin,
+      );
 
       expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
@@ -13786,11 +13827,21 @@ describe('OrdersService', () => {
 
     it('scopes by organizationId for ACCOUNT_MANAGER with an org', async () => {
       mockOrdersRepository.findAllByOrganization.mockResolvedValue({
-        data: [], total: 0, skip: 0, take: 10,
+        data: [],
+        total: 0,
+        skip: 0,
+        take: 10,
       });
-      const manager = makeUser(UserRole.ACCOUNT_MANAGER, { organizationId: 'org-1' });
+      const manager = makeUser(UserRole.ACCOUNT_MANAGER, {
+        organizationId: 'org-1',
+      });
 
-      await service.findAll({ skip: 0, take: 10 }, manager.userId, UserRole.ACCOUNT_MANAGER, manager);
+      await service.findAll(
+        { skip: 0, take: 10 },
+        manager.userId,
+        UserRole.ACCOUNT_MANAGER,
+        manager,
+      );
 
       expect(mockOrdersRepository.findAllByOrganization).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
@@ -13800,10 +13851,20 @@ describe('OrdersService', () => {
     });
 
     it('falls back to own orders for ACCOUNT_MANAGER without an org', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      mockOrdersRepository.findAll.mockResolvedValue({
+        data: [],
+        total: 0,
+        skip: 0,
+        take: 10,
+      });
       const manager = makeUser(UserRole.ACCOUNT_MANAGER);
 
-      await service.findAll({ skip: 0, take: 10 }, manager.userId, UserRole.ACCOUNT_MANAGER, manager);
+      await service.findAll(
+        { skip: 0, take: 10 },
+        manager.userId,
+        UserRole.ACCOUNT_MANAGER,
+        manager,
+      );
 
       expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
@@ -13812,10 +13873,20 @@ describe('OrdersService', () => {
     });
 
     it('scopes by userId for USER role', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      mockOrdersRepository.findAll.mockResolvedValue({
+        data: [],
+        total: 0,
+        skip: 0,
+        take: 10,
+      });
       const user = makeUser(UserRole.USER);
 
-      await service.findAll({ skip: 0, take: 10 }, user.userId, UserRole.USER, user);
+      await service.findAll(
+        { skip: 0, take: 10 },
+        user.userId,
+        UserRole.USER,
+        user,
+      );
 
       expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
@@ -13824,10 +13895,20 @@ describe('OrdersService', () => {
     });
 
     it('scopes by userId for DRIVER role', async () => {
-      mockOrdersRepository.findAll.mockResolvedValue({ data: [], total: 0, skip: 0, take: 10 });
+      mockOrdersRepository.findAll.mockResolvedValue({
+        data: [],
+        total: 0,
+        skip: 0,
+        take: 10,
+      });
       const driver = makeUser(UserRole.DRIVER);
 
-      await service.findAll({ skip: 0, take: 10 }, driver.userId, UserRole.DRIVER, driver);
+      await service.findAll(
+        { skip: 0, take: 10 },
+        driver.userId,
+        UserRole.DRIVER,
+        driver,
+      );
 
       expect(mockOrdersRepository.findAll).toHaveBeenCalledWith(
         { skip: 0, take: 10 },
@@ -13862,7 +13943,9 @@ describe('OrdersService', () => {
     it('does not create order when car access is denied', async () => {
       mockCarsService.findOne.mockRejectedValue(new ForbiddenException());
 
-      await expect(service.create(user, dto)).rejects.toThrow(ForbiddenException);
+      await expect(service.create(user, dto)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(mockOrdersRepository.createTransactional).not.toHaveBeenCalled();
     });
   });
@@ -13871,7 +13954,10 @@ describe('OrdersService', () => {
 
   describe('findOne', () => {
     it('returns the order for the owner', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 'order-1',
+        userId: 'user-1',
+      });
 
       const result = await service.findOne('order-1', 'user-1', UserRole.USER);
 
@@ -13879,7 +13965,10 @@ describe('OrdersService', () => {
     });
 
     it('throws ForbiddenException when a different user requests it', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 'order-1',
+        userId: 'user-1',
+      });
 
       await expect(
         service.findOne('order-1', 'other-user', UserRole.USER),
@@ -13887,17 +13976,31 @@ describe('OrdersService', () => {
     });
 
     it('allows ADMIN to fetch any order', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 'order-1',
+        userId: 'user-1',
+      });
 
-      const result = await service.findOne('order-1', 'admin-id', UserRole.ADMIN);
+      const result = await service.findOne(
+        'order-1',
+        'admin-id',
+        UserRole.ADMIN,
+      );
 
       expect(result).toEqual({ id: 'order-1', userId: 'user-1' });
     });
 
     it('allows ACCOUNT_MANAGER to fetch any order', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({ id: 'order-1', userId: 'user-1' });
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 'order-1',
+        userId: 'user-1',
+      });
 
-      const result = await service.findOne('order-1', 'mgr-id', UserRole.ACCOUNT_MANAGER);
+      const result = await service.findOne(
+        'order-1',
+        'mgr-id',
+        UserRole.ACCOUNT_MANAGER,
+      );
 
       expect(result).toEqual({ id: 'order-1', userId: 'user-1' });
     });
@@ -15384,7 +15487,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -15392,8 +15494,7 @@ import { USERS_REPOSITORY } from './interfaces/users.repository.interface';
 import { UserRole } from '@prisma/client';
 import { AuthUser } from '../auth/types/auth-user.type';
 import { CreateUserDto } from './dto/create-user.dto';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+import type { SafeUser } from './interfaces/users.repository.interface';
 
 function makeAuthUser(
   role: UserRole,
@@ -15418,8 +15519,6 @@ function makeCreateDto(overrides: Partial<CreateUserDto> = {}): CreateUserDto {
   };
 }
 
-// ─── Mocks ───────────────────────────────────────────────────────────────────
-
 const mockUsersRepository = {
   adminCreateUser: jest.fn(),
   createNormalUser: jest.fn(),
@@ -15433,8 +15532,6 @@ const mockUsersRepository = {
   updatePassword: jest.fn(),
   softDelete: jest.fn(),
 };
-
-// ─── Suite ───────────────────────────────────────────────────────────────────
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -15456,8 +15553,6 @@ describe('UsersService', () => {
     expect(service).toBeDefined();
   });
 
-  // ─── create ──────────────────────────────────────────────────────────────
-
   describe('create', () => {
     describe('ADMIN caller', () => {
       it('creates a USER — resolvedOrgId passed to repo is null', async () => {
@@ -15472,8 +15567,7 @@ describe('UsersService', () => {
           organizationId: null,
         });
 
-        const result = await service.create(dto, caller);
-
+        const result: SafeUser = await service.create(dto, caller);
         expect(result.organizationId).toBeNull();
         expect(mockUsersRepository.adminCreateUser).toHaveBeenCalledWith(
           dto,
@@ -15491,8 +15585,12 @@ describe('UsersService', () => {
 
         await service.create(dto, caller);
 
-        const [, , resolvedOrgId] =
-          mockUsersRepository.adminCreateUser.mock.calls[0];
+        const calls = mockUsersRepository.adminCreateUser.mock.calls as [
+          unknown,
+          unknown,
+          string | null,
+        ][];
+        const [, , resolvedOrgId] = calls[0];
         expect(resolvedOrgId).toBeNull();
       });
 
@@ -15546,7 +15644,7 @@ describe('UsersService', () => {
     });
 
     describe('ACCOUNT_MANAGER caller', () => {
-      it('creates a DRIVER — organizationId resolved from caller JWT, not from dto', async () => {
+      it('creates a DRIVER — organizationId resolved from caller JWT', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
           organizationId: 'org-abc',
@@ -15560,8 +15658,7 @@ describe('UsersService', () => {
           organizationId: 'org-abc',
         });
 
-        const result = await service.create(dto, caller);
-
+        const result: SafeUser = await service.create(dto, caller);
         expect(result.organizationId).toBe('org-abc');
         expect(mockUsersRepository.adminCreateUser).toHaveBeenCalledWith(
           dto,
@@ -15570,21 +15667,25 @@ describe('UsersService', () => {
         );
       });
 
-      it('creates a DRIVER — caller org is used even if dto had a different org somehow', async () => {
-        // organizationId is not on CreateUserDto by design, but this test
-        // confirms the repo receives the caller's org regardless
+      it('creates a DRIVER — caller org is used', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
           organizationId: 'org-abc',
         });
 
         mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
-        mockUsersRepository.adminCreateUser.mockResolvedValue({ id: 'driver-1' });
+        mockUsersRepository.adminCreateUser.mockResolvedValue({
+          id: 'driver-1',
+        });
 
         await service.create(dto, caller);
 
-        const [, , resolvedOrgId] =
-          mockUsersRepository.adminCreateUser.mock.calls[0];
+        const calls = mockUsersRepository.adminCreateUser.mock.calls as [
+          unknown,
+          unknown,
+          string | null,
+        ][];
+        const [, , resolvedOrgId] = calls[0];
         expect(resolvedOrgId).toBe('org-abc');
       });
 
@@ -15641,10 +15742,10 @@ describe('UsersService', () => {
         expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
       });
 
-      it('has no organizationId in JWT (malformed token) — throws ForbiddenException', async () => {
+      it('has no organizationId in JWT — throws ForbiddenException', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
-          organizationId: null, // malformed — no org despite being ACCOUNT_MANAGER
+          organizationId: null,
         });
 
         mockUsersRepository.findByEmailWithPassword.mockResolvedValue(null);
@@ -15668,7 +15769,7 @@ describe('UsersService', () => {
         expect(mockUsersRepository.adminCreateUser).not.toHaveBeenCalled();
       });
 
-      it('throws ConflictException when email already exists — before org resolution', async () => {
+      it('throws ConflictException when email already exists', async () => {
         const dto = makeCreateDto({ role: UserRole.DRIVER });
         const caller = makeAuthUser(UserRole.ACCOUNT_MANAGER, {
           organizationId: 'org-abc',
@@ -15686,8 +15787,6 @@ describe('UsersService', () => {
     });
   });
 
-  // ─── findOne ─────────────────────────────────────────────────────────────
-
   describe('findOne', () => {
     it('returns the user when found', async () => {
       mockUsersRepository.findById.mockResolvedValue({
@@ -15696,7 +15795,6 @@ describe('UsersService', () => {
       });
 
       const result = await service.findOne('u-1');
-
       expect(result).toEqual({ id: 'u-1', email: 'x@x.com' });
     });
 
@@ -15704,19 +15802,15 @@ describe('UsersService', () => {
       mockUsersRepository.findById.mockResolvedValue(null);
 
       const result = await service.findOne('ghost');
-
       expect(result).toBeNull();
     });
   });
-
-  // ─── findAll ─────────────────────────────────────────────────────────────
 
   describe('findAll', () => {
     it('returns all users when no role filter is given', async () => {
       mockUsersRepository.findAll.mockResolvedValue([{ id: 'u-1' }]);
 
       const result = await service.findAll();
-
       expect(mockUsersRepository.findAll).toHaveBeenCalledWith(undefined);
       expect(result).toHaveLength(1);
     });
@@ -15725,12 +15819,9 @@ describe('UsersService', () => {
       mockUsersRepository.findAll.mockResolvedValue([]);
 
       await service.findAll(UserRole.DRIVER);
-
       expect(mockUsersRepository.findAll).toHaveBeenCalledWith(UserRole.DRIVER);
     });
   });
-
-  // ─── changePassword ───────────────────────────────────────────────────────
 
   describe('changePassword', () => {
     it('throws UnauthorizedException when user is not found', async () => {
@@ -15745,8 +15836,6 @@ describe('UsersService', () => {
     });
 
     it('throws UnauthorizedException when current password is wrong', async () => {
-      // bcrypt.compare will return false for a plaintext vs plaintext comparison
-      // so we store a bcrypt hash of a different password
       const bcrypt = await import('bcrypt');
       const wrongHash = await bcrypt.hash('different-password', 10);
 
@@ -15783,19 +15872,16 @@ describe('UsersService', () => {
       expect(result).toEqual({ message: 'Password changed successfully' });
       expect(mockUsersRepository.updatePassword).toHaveBeenCalledWith(
         'u-1',
-        expect.any(String), // new bcrypt hash
+        expect.any(String),
       );
     });
   });
-
-  // ─── remove ──────────────────────────────────────────────────────────────
 
   describe('remove', () => {
     it('delegates soft delete to repository', async () => {
       mockUsersRepository.softDelete.mockResolvedValue(undefined);
 
       await service.remove('u-1');
-
       expect(mockUsersRepository.softDelete).toHaveBeenCalledWith('u-1');
     });
   });
@@ -16394,9 +16480,10 @@ PATH: .\test\jest-e2e.json
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": ["ts-jest", {
+      "tsconfig": "tsconfig.json"
+    }]
   }
 }
-
 
 ******************** END OF FILE ********************

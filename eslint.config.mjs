@@ -19,7 +19,12 @@ export default tseslint.config(
       },
       sourceType: 'commonjs',
       parserOptions: {
-        projectService: true,
+        projectService: {
+          // Allows files not explicitly included in tsconfig.json (e.g.
+          // test/app.e2e-spec.ts) to still be parsed and type-checked by
+          // ESLint using the nearest tsconfig as a fallback.
+          allowDefaultProject: ['test/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -29,7 +34,7 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
 );

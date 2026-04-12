@@ -9,6 +9,27 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 
+interface HttpExceptionResponse {
+  message?: string | string[];
+  error?: string;
+}
+
+interface ErrorResponseBody {
+  statusCode: number;
+  message: string;
+  error: string;
+  timestamp: string;
+  path: string;
+}
+
+function resolveMessage(value: string | string[]): string {
+  if (Array.isArray(value)) {
+    const first: string | undefined = value[0];
+    return first !== undefined ? first : 'Internal server error';
+  }
+  return value;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -19,35 +40,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const { httpAdapter } = this.httpAdapterHost;
     const ctx = host.switchToHttp();
 
-    let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let error = 'Internal Server Error';
+    let httpStatus: number = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message: string | string[] = 'Internal server error';
+    let error: string = 'Internal Server Error';
 
-    // 1. Handle NestJS HttpExceptions
     if (exception instanceof HttpException) {
       httpStatus = exception.getStatus();
       const response = exception.getResponse();
 
       if (typeof response === 'object' && response !== null) {
-        const res = response as { message?: string | string[]; error?: string };
-
+        const res = response as HttpExceptionResponse;
         const incomingMessage = Array.isArray(res.message)
           ? res.message[0]
           : res.message;
-
-        message = incomingMessage || message;
-        error = res.error || error;
+        message = incomingMessage ?? message;
+        error = res.error ?? error;
       } else {
-        // التعديل هنا: تحويل الاستجابة لنص صريح لحل خطأ TS2322
         message = String(response);
       }
-    }
-    // 2. Handle Prisma Errors
-    else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       switch (exception.code) {
         case 'P2002':
           httpStatus = HttpStatus.CONFLICT;
-          message = `Duplicate entry: ${(exception.meta as { target?: string })?.target} already exists.`;
+          message = `Duplicate entry: ${(exception.meta as { target?: string } | undefined)?.target ?? 'unknown'} already exists.`;
           error = 'Conflict';
           break;
         case 'P2025':
@@ -67,20 +82,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
           );
           break;
       }
-    }
-    else {
+    } else {
       this.logger.error('Unhandled Exception', exception);
     }
 
-    const responseBody = {
+    const rawUrl: unknown = httpAdapter.getRequestUrl(
+      ctx.getRequest<Request>(),
+    );
+    const path: string = typeof rawUrl === 'string' ? rawUrl : '';
+
+    const responseBody: ErrorResponseBody = {
       statusCode: httpStatus,
-      // تأكيد أخير إن الرسالة نص
-      message: Array.isArray(message) ? message[0] : message,
+      message: resolveMessage(message),
       error,
       timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(ctx.getRequest()),
+      path,
     };
 
-    httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+    httpAdapter.reply(ctx.getResponse<Response>(), responseBody, httpStatus);
   }
 }
