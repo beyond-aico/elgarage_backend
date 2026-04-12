@@ -14,8 +14,6 @@ export const envValidationSchema = Joi.object({
     .required(),
 
   // ── JWT ────────────────────────────────────────────────────────────────
-  // min(32) removed — Railway secrets may be shorter than 32 characters
-  // depending on how they were generated in the Railway dashboard.
   JWT_ACCESS_SECRET: Joi.string().required(),
   JWT_REFRESH_SECRET: Joi.string().required(),
 
@@ -23,12 +21,17 @@ export const envValidationSchema = Joi.object({
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
 
   // ── Redis ──────────────────────────────────────────────────────────────
-  // Either REDIS_URL (managed cloud) or REDIS_HOST + REDIS_PORT (self-hosted).
   REDIS_URL: Joi.string()
     .uri({ scheme: ['redis', 'rediss'] })
     .optional(),
+
   REDIS_HOST: Joi.string().optional().allow(''),
-  REDIS_PORT: Joi.number().integer().min(1).max(65535).default(6379),
+
+  // allow('') handles the case where Railway sets REDIS_PORT as an empty
+  // string. empty() converts empty string to undefined so default(6379)
+  // then applies correctly instead of failing the number check.
+  REDIS_PORT: Joi.number().integer().min(1).max(65535).empty('').default(6379),
+
   REDIS_PASSWORD: Joi.string().optional().allow(''),
   REDIS_TLS: Joi.string().valid('true', 'false').default('false'),
 
@@ -44,6 +47,4 @@ export const envValidationSchema = Joi.object({
   .or('REDIS_URL', 'REDIS_HOST')
   // allowUnknown: true — Railway injects its own variables into every
   // container at runtime (RAILWAY_*, npm_*, PATH, HOME, HOSTNAME, etc.).
-  // Blocking unknown keys breaks every cloud deployment. We validate only
-  // the keys we own and silently ignore everything else.
   .options({ allowUnknown: true, abortEarly: false });
